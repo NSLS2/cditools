@@ -30,7 +30,8 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-  "ophyd"
+  "ophyd",
+  "h5py",
 ]
 
 [project.optional-dependencies]

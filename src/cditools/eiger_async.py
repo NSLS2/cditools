@@ -4,16 +4,20 @@ Ophyd Async implementation for Eiger detector.
 import asyncio
 import uuid
 import time
-from typing import Sequence, Annotated as A
+from typing import Sequence, Annotated as A, Any
 from pathlib import Path
+from logging import getLogger
+from datetime import datetime
 
 from ophyd_async.core import (
     PathProvider, TriggerInfo, SignalRW, SignalR, DetectorTrigger, 
-    StandardDetector, Device, DatasetDescriber, DetectorController
+    StandardDetector, Device, DatasetDescriber, DetectorController, DetectorWriter
 )
 from ophyd_async.epics.signal import PvSuffix
-from ophyd_async.epics.adcore import ADWriter, NDPluginBaseIO, ADBaseIO, AreaDetector, ADBaseController, ADBaseDatasetDescriber
+from ophyd_async.epics.adcore import ADWriter, NDPluginBaseIO, ADBaseIO, AreaDetector, ADBaseController, ADBaseDatasetDescriber, ADImageMode, ADHDFWriter
 from ophyd_async.core import StrictEnum
+
+logger = getLogger(__name__)
 
 
 class EigerTriggerMode(StrictEnum):
@@ -181,6 +185,7 @@ class EigerDriverIO(ADBaseIO):
     fw_name_pattern: A[SignalRW[str], PvSuffix.rbv("FWNamePattern")]
     sequence_id: A[SignalR[float], PvSuffix("SequenceId")]
     save_files: A[SignalRW[bool], PvSuffix.rbv("SaveFiles")]
+    file_path: A[SignalRW[str], PvSuffix.rbv("FilePath")]
     file_owner: A[SignalRW[str], PvSuffix.rbv("FileOwner")]
     file_owner_grp: A[SignalRW[str], PvSuffix.rbv("FileOwnerGrp")]
     file_perms: A[SignalRW[str], PvSuffix.rbv("FilePerms")]
@@ -226,158 +231,216 @@ class EigerDriverIO(ADBaseIO):
     energy_eps: A[SignalRW[float], PvSuffix.rbv("EnergyEps")]
 
 
-class EigerTriggerInfo(TriggerInfo):
-    photon_energy: float
-
-
-class EigerWriter(ADWriter):
-    """Eiger-specific file writer using the built-in FileWriter interface."""
+class EigerWriter(DetectorWriter):
+    """Eiger-specific file writer using the built-in FileWriter interface.
     
-    def __init__(self, dataset_source: EigerDriverIO, path_provider: PathProvider):
-        dataset_describer = ADBaseDatasetDescriber(dataset_source)
-        
-        # Initialize with empty fileio since Eiger handles its own file writing
-        super().__init__(
-            fileio=Device(""),  # TODO: Dummy device since Eiger handles file writing internally
-            path_provider=path_provider,
-            dataset_describer=dataset_describer,
-        )
-        self._dataset_source = dataset_source
-        self._file_info = None
-        self._num_captured = 0
+    Adapted from the original eiger.py EigerFileHandler implementation
+    to work with the ophyd-async DetectorWriter interface.
+    """
+    
+    def __init__(self, driver: EigerDriverIO, path_provider: PathProvider):
+        self._path_provider = path_provider
+        self._driver = driver
+        self._sequence_id_offset = 1
+        self._resource_uid = None
+        self._write_path = None
+        self._file_prefix = None
+        self._images_per_file = None
+        self._resource_kwargs = None
+        self._stream_resource_doc = None
+        self._initial_sequence_id = None
 
-    async def open(self, name: str, exposures_per_event: int = 1) -> dict[str, any]:
+    async def open(self, multiplier: int = 1) -> dict[str, Any]:
         """Setup file writing for acquisition."""
         # Get file path info from path provider
         self._file_info = self._path_provider()
-        file_path = Path(self._file_info.directory) / self._file_info.filename
+        
+        # Generate resource UID similar to original implementation
+        self._resource_uid = str(uuid.uuid4())[:8]  # Similar to new_short_uid()
+        
+        # Create write path using current datetime
+        current_time = datetime.now()
+        self._write_path = Path(self._file_info.directory_path) / current_time.strftime("%Y/%m/%d")
+        
+        # Set up file path on the detector
+        await self._driver.file_path.set(str(self._write_path))
+        
+        # Set the name pattern with $id replacement similar to original
+        name_pattern = f"{self._resource_uid}_$id"
+        await self._driver.fw_name_pattern.set(name_pattern)
         
         # Configure the Eiger FileWriter
-        await self._dataset_source.fw_enable.set(True)
-        await self._dataset_source.save_files.set(True)
-        await self._dataset_source.fw_name_pattern.set(str(file_path.with_suffix(".h5")))
+        await asyncio.gather(
+            self._driver.fw_enable.set(True),
+            self._driver.save_files.set(True),
+            self._driver.fw_hdf5_format.set(EigerHDF5Format.V2024_2),
+            self._driver.fw_compression.set(True),
+            self._driver.data_source.set(EigerDataSource.FILE_WRITER),
+        )
         
-        # Set HDF5 format and compression
-        await self._dataset_source.fw_hdf5_format.set(EigerHDF5Format.V2024_2)
-        await self._dataset_source.fw_compression.set(True)
+        # Get images per file for resource document
+        self._images_per_file = await self._driver.fw_nimgs_per_file.get_value()
         
-        # Enable data source for file writer
-        await self._dataset_source.data_source.set(EigerDataSource.FILE_WRITER)
+        # Set the filename prefix for the resource document
+        self._file_prefix = self._write_path / self._resource_uid
+        
+        # Prepare resource kwargs similar to original implementation
+        self._resource_kwargs = {"images_per_file": int(self._images_per_file)}
+        
+        # Create the stream resource document
+        self._stream_resource_doc = {
+            "spec": "AD_EIGER",
+            "root": str(self._file_info.directory_path),
+            "resource_path": str(self._file_prefix.relative_to(self._file_info.directory_path)),
+            "resource_kwargs": self._resource_kwargs,
+            "path_semantics": "posix",
+            "uid": str(uuid.uuid4()),
+        }
+        
+        # Validate and create write path
+        if not self._write_path.exists():
+            self._write_path.mkdir(parents=True, exist_ok=True)
+        
+        # Get initial sequence ID to track changes
+        self._initial_sequence_id = await self._driver.sequence_id.get_value()
         
         # Get dataset info for the describe output
-        shape = await self._dataset_describer.shape()
-        dtype = await self._dataset_describer.np_datatype()
+        array_size_x = await self._driver.array_size_x.get_value()
+        array_size_y = await self._driver.array_size_y.get_value()
+        data_type = await self._driver.data_type.get_value()
+        
+        # Convert data type to numpy dtype
+        dtype_map = {
+            "UInt8": "uint8",
+            "UInt16": "uint16", 
+            "UInt32": "uint32",
+            "Int8": "int8",
+            "Int16": "int16",
+            "Int32": "int32",
+            "Float32": "float32",
+            "Float64": "float64",
+        }
+        dtype = dtype_map.get(data_type, "uint16")  # Default to uint16
         
         return {
-            name: {
-                "source": str(file_path.with_suffix(".h5")),
-                "shape": shape,
+            "primary": {
+                "source": f"EIGER:{self._resource_uid}",
+                "shape": [int(array_size_y), int(array_size_x)],
                 "dtype": dtype,
-                "external": "FILESTORE:" + str(file_path.with_suffix(".h5")),
+                "external": f"FILESTORE:{self._stream_resource_doc['uid']}",
             }
         }
 
     async def observe_indices_written(self, timeout: float = 10.0):
         """Monitor the number of files written by the Eiger FileWriter."""
-        last_count = 0
+        last_sequence_id = self._initial_sequence_id
+        
         while True:
             try:
-                # Check sequence ID to see how many images have been written
-                current_count = await self._dataset_source.sequence_id.get_value()
-                if current_count > last_count:
-                    for i in range(last_count, int(current_count)):
-                        yield i
-                    last_count = int(current_count)
+                # Check sequence ID to see how many acquisitions have been written
+                current_sequence_id = await self._driver.sequence_id.get_value()
+                
+                if current_sequence_id > last_sequence_id:
+                    # Yield indices for all new sequences since last check
+                    for seq_id in range(int(last_sequence_id + 1), int(current_sequence_id + 1)):
+                        # Convert sequence ID to 0-based index
+                        index = seq_id - self._initial_sequence_id - 1
+                        yield index
+                    last_sequence_id = current_sequence_id
+                    
                 await asyncio.sleep(0.1)
             except asyncio.TimeoutError:
                 break
 
     async def get_indices_written(self) -> int:
         """Get the current number of indices written."""
-        sequence_id = await self._dataset_source.sequence_id.get_value()
-        return int(sequence_id)
+        current_sequence_id = await self._driver.sequence_id.get_value()
+        return int(current_sequence_id - self._initial_sequence_id)
 
-    async def collect_stream_docs(self, name: str, indices_written: int):
-        """Generate stream documents for the written HDF5 files."""
-        if self._file_info is None:
+    async def collect_stream_docs(self, indices_written: int):
+        """Generate stream documents for the written HDF5 files.
+        
+        Follows the pattern from the original EigerFileHandler.generate_datum method.
+        """
+        if self._stream_resource_doc is None:
             return
             
-        # For Eiger, we typically get one HDF5 file per acquisition
-        file_path = Path(self._file_info.directory) / f"{self._file_info.filename}.h5"
+        # Yield the stream resource document first
+        yield "stream_resource", self._stream_resource_doc
         
-        # Create stream resource document
-        stream_resource = {
-            "spec": "EIGER_HDF5",
-            "root": str(self._file_info.directory),
-            "resource_path": str(file_path.name),
-            "resource_kwargs": {},
-            "path_semantics": "posix",
-            "uid": str(uuid.uuid4()),
-        }
-        
-        yield "stream_resource", stream_resource
-        
-        # Create stream datum documents for each frame
+        # Generate stream datum documents for each index written
         for i in range(indices_written):
+            # Calculate the actual sequence number like in original implementation
+            sequence_number = self._sequence_id_offset + self._initial_sequence_id + i
+            
             stream_datum = {
-                "descriptor": name,
-                "stream_resource": stream_resource["uid"],
+                "descriptor": "primary",
+                "stream_resource": self._stream_resource_doc["uid"],
                 "seq_num": i,
                 "timestamps": [time.time()],
+                "datum_kwargs": {"seq_id": int(sequence_number)},
             }
             yield "stream_datum", stream_datum
 
     async def close(self) -> None:
-        """Clean up file writing after acquisition."""
+        """Clean up file writing after acquisition and validate files exist."""
         # Disable file writer
-        await self._dataset_source.fw_enable.set(False)
-        await self._dataset_source.save_files.set(False)
+        await asyncio.gather(
+            self._driver.fw_enable.set(False),
+            self._driver.save_files.set(False),
+        )
+        
+        # Validate that master files were written (similar to original unstage method)
+        if self._file_prefix is not None and self._initial_sequence_id is not None:
+            final_sequence_id = await self._driver.sequence_id.get_value()
+            indices_written = int(final_sequence_id - self._initial_sequence_id)
+            
+            # Check that master files exist for each sequence
+            missing_files = []
+            for i in range(indices_written):
+                sequence_number = self._sequence_id_offset + self._initial_sequence_id + i
+                master_file = Path(f"{self._file_prefix}_{int(sequence_number)}_master.h5")
+                if not master_file.exists():
+                    missing_files.append(master_file)
+            
+            if missing_files:
+                logger.warning(f"Master files were not written: {missing_files}")
 
 
 class EigerController(ADBaseController[EigerDriverIO]):
     """Controller for Eiger detector, handling trigger modes and acquisition setup."""
     
-    def __init__(self, driver: EigerDriverIO):
-        super().__init__(driver)
+    def __init__(self, driver: EigerDriverIO, *args: Any, **kwargs: dict[str, Any]) -> None:
+        super().__init__(driver, *args, **kwargs)
 
     def get_deadtime(self, exposure: float | None) -> float:
-        """Get detector deadtime for the given exposure.
-        
-        For Eiger, deadtime is typically constant and available from the driver.
-        """
-        # Use the deadtime from the detector, or a default if exposure is None
-        return 0.001  # 1ms typical deadtime for Eiger, can be read from driver.dead_time
+        """Get detector deadtime for the given exposure."""
+        return 0.001
 
-    async def prepare(self, trigger_info: EigerTriggerInfo) -> None:
+    async def prepare(self, trigger_info: TriggerInfo) -> None:
         """Prepare the detector for acquisition."""
-        # Set photon energy
-        await self._driver.photon_energy.set(trigger_info.photon_energy)
-        
+        if (exposure := trigger_info.livetime) is not None:
+            await self._driver.acquire_time.set(exposure)
+
         # Configure trigger mode based on TriggerInfo
         if trigger_info.trigger == DetectorTrigger.INTERNAL:
             await self._driver.trigger_mode.set(EigerTriggerMode.INTERNAL_SERIES)
         elif trigger_info.trigger == DetectorTrigger.EXTERNAL:
             await self._driver.trigger_mode.set(EigerTriggerMode.EXTERNAL_SERIES)
+        elif trigger_info.trigger in [DetectorTrigger.VARIABLE_GATE, DetectorTrigger.CONSTANT_GATE]:
+            await self._driver.trigger_mode.set(EigerTriggerMode.EXTERNAL_GATE)
         else:
             raise NotImplementedError(f"Trigger mode {trigger_info.trigger} not supported")
-        
-        # Call parent prepare method to handle standard areaDetector setup
-        await super().prepare(trigger_info)
 
-    async def arm(self) -> None:
-        """Arm the detector for acquisition."""
-        # Use parent implementation which handles standard areaDetector arming
-        await super().arm()
+        if trigger_info.total_number_of_exposures == 0:
+            image_mode = ADImageMode.CONTINUOUS
+        else:
+            image_mode = ADImageMode.MULTIPLE
 
-    async def wait_for_idle(self) -> None:
-        """Wait for detector to become idle."""
-        # Use parent implementation
-        await super().wait_for_idle()
-
-    async def disarm(self) -> None:
-        """Disarm the detector after acquisition."""
-        # Use parent implementation
-        await super().disarm()
+        await asyncio.gather(
+            self._driver.num_images.set(trigger_info.total_number_of_exposures),
+            self._driver.image_mode.set(image_mode),
+        )
 
 
 class EigerDetector(AreaDetector[EigerController]):
@@ -388,30 +451,36 @@ class EigerDetector(AreaDetector[EigerController]):
         prefix: str,
         path_provider: PathProvider,
         driver_suffix: str = "cam1:",
+        writer_cls: type[DetectorWriter] = EigerWriter,
+        fileio_suffix: str | None = None,
         name: str = "",
         config_sigs: Sequence[SignalR] = (),
         plugins: dict[str, NDPluginBaseIO] | None = None,
     ):
-        # Create driver IO
-        driver = EigerDriverIO(prefix + driver_suffix, name="driver")
-        
-        # Create controller
+        driver = EigerDriverIO(prefix + driver_suffix)
         controller = EigerController(driver)
         
-        # Create writer
-        writer = EigerWriter(dataset_source=driver, path_provider=path_provider)
+        # If the writer class is an ADWriter, use the with_io method
+        # since we want to use one of the AD plugins.
+        # Otherwise, use the internal file writer.
+        if issubclass(writer_cls, ADWriter):
+            writer = writer_cls.with_io(
+                prefix,
+                path_provider,
+                dataset_source=driver,
+                fileio_suffix=fileio_suffix,
+                plugins=plugins,
+            )
+        else:
+            if fileio_suffix is not None or plugins is not None:
+                logger.warning("Ignoring params fileio_suffix and plugins for non-ADWriter writer")
+            writer = writer_cls(driver, path_provider)
         
         super().__init__(
             controller=controller,
             writer=writer,
-            plugins=plugins or {},
-            config_sigs=config_sigs,
+            plugins=plugins,
             name=name,
+            config_sigs=config_sigs,
         )
         
-        # Store driver for external access
-        self.driver = driver
-
-    async def prepare(self, value: EigerTriggerInfo) -> None:
-        """Prepare detector with Eiger-specific trigger info."""
-        await super().prepare(value)

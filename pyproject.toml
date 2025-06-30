@@ -39,16 +39,19 @@ dependencies = [
 test = [
   "pytest >=6",
   "pytest-cov >=3",
+  "pytest-asyncio >=0.18",
   "caproto[standard] >=0.4.2rc1,!=1.2.0",
 ]
 dev = [
   "caproto[standard] >=0.4.2rc1,!=1.2.0",
   "pytest >=6",
   "pytest-cov >=3",
+  "pytest-asyncio >=0.18",
   "pandas",
   "pre-commit",
   "ipython",
   "ruff",
+  "aioca",
 ]
 docs = [
   "sphinx>=7.0",

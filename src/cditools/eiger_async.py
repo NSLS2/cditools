@@ -1,17 +1,19 @@
 """
 Ophyd Async implementation for Eiger detector.
 """
+from dataclasses import dataclass
 import asyncio
-import uuid
 import time
 from typing import Sequence, Annotated as A, Any
 from pathlib import Path
 from logging import getLogger
-from datetime import datetime
 
+import numpy as np
+from event_model import DataKey
 from ophyd_async.core import (
     PathProvider, TriggerInfo, SignalRW, SignalR, DetectorTrigger, 
-    StandardDetector, Device, DatasetDescriber, DetectorController, DetectorWriter
+    StandardDetector, Device, DatasetDescriber, DetectorController, DetectorWriter,
+    HDFDatasetDescription, HDFDocumentComposer,
 )
 from ophyd_async.epics.signal import PvSuffix
 from ophyd_async.epics.adcore import ADWriter, NDPluginBaseIO, ADBaseIO, AreaDetector, ADBaseController, ADBaseDatasetDescriber, ADImageMode, ADHDFWriter
@@ -231,105 +233,182 @@ class EigerDriverIO(ADBaseIO):
     energy_eps: A[SignalRW[float], PvSuffix.rbv("EnergyEps")]
 
 
+@dataclass
+class EigerDatasetDescription:
+    """A subset of the HDFDatasetDescription dataclass for Eiger.
+    
+    This is used to describe the different datasets in the master file.
+
+    Attributes:
+        dataset (str): The dataset path in the HDF5 file.
+        shape (tuple[int, ...]): The shape of the dataset (excluding the first dimension, which is the number of exposures).
+        dtype_numpy (str): The numpy dtype of the dataset.
+    """
+    dataset: str
+    shape: tuple[int, ...]
+    dtype_numpy: str
+
+
 class EigerWriter(DetectorWriter):
     """Eiger-specific file writer using the built-in FileWriter interface.
     
     Adapted from the original eiger.py EigerFileHandler implementation
     to work with the ophyd-async DetectorWriter interface.
-    """
-    
-    def __init__(self, driver: EigerDriverIO, path_provider: PathProvider):
-        self._path_provider = path_provider
-        self._driver = driver
-        self._sequence_id_offset = 1
-        self._resource_uid = None
-        self._write_path = None
-        self._file_prefix = None
-        self._images_per_file = None
-        self._resource_kwargs = None
-        self._stream_resource_doc = None
-        self._initial_sequence_id = None
 
-    async def open(self, multiplier: int = 1) -> dict[str, Any]:
+    TODO: How this should work is that the it should only use a single sequence ID for the whole scan.
+    TODO: Use the num_triggers as the total number of events.
+    Indices written should be `(num_images // num_triggers) % num_images_counter`.
+    """
+
+    def __init__(self, driver: EigerDriverIO, path_provider: PathProvider, dataset_describer: DatasetDescriber):
+        self._driver = driver
+        self._path_provider = path_provider
+        self._dataset_describer = dataset_describer
+        self._sequence_id_offset = 1
+        self._initial_sequence_id = 1
+
+    async def open(self, name: str, exposures_per_event: int = 1) -> dict[str, Any]:
         """Setup file writing for acquisition."""
         # Get file path info from path provider
         self._file_info = self._path_provider()
-        
-        # Generate resource UID similar to original implementation
-        self._resource_uid = str(uuid.uuid4())[:8]  # Similar to new_short_uid()
-        
-        # Create write path using current datetime
-        current_time = datetime.now()
-        self._write_path = Path(self._file_info.directory_path) / current_time.strftime("%Y/%m/%d")
-        
-        # Set up file path on the detector
-        await self._driver.file_path.set(str(self._write_path))
-        
+
         # Set the name pattern with $id replacement similar to original
-        name_pattern = f"{self._resource_uid}_$id"
-        await self._driver.fw_name_pattern.set(name_pattern)
+        name_pattern = f"{self._file_info.filename}_$id"
         
         # Configure the Eiger FileWriter
         await asyncio.gather(
+            self._driver.file_path.set(self._file_info.directory_path.as_posix()),
+            self._driver.fw_name_pattern.set(name_pattern),
             self._driver.fw_enable.set(True),
             self._driver.save_files.set(True),
-            self._driver.fw_hdf5_format.set(EigerHDF5Format.V2024_2),
-            self._driver.fw_compression.set(True),
+            self._driver.fw_hdf5_format.set(EigerHDF5Format.LEGACY),
             self._driver.data_source.set(EigerDataSource.FILE_WRITER),
         )
         
-        # Get images per file for resource document
-        self._images_per_file = await self._driver.fw_nimgs_per_file.get_value()
-        
-        # Set the filename prefix for the resource document
-        self._file_prefix = self._write_path / self._resource_uid
-        
-        # Prepare resource kwargs similar to original implementation
-        self._resource_kwargs = {"images_per_file": int(self._images_per_file)}
-        
-        # Create the stream resource document
-        self._stream_resource_doc = {
-            "spec": "AD_EIGER",
-            "root": str(self._file_info.directory_path),
-            "resource_path": str(self._file_prefix.relative_to(self._file_info.directory_path)),
-            "resource_kwargs": self._resource_kwargs,
-            "path_semantics": "posix",
-            "uid": str(uuid.uuid4()),
-        }
-        
-        # Validate and create write path
-        if not self._write_path.exists():
-            self._write_path.mkdir(parents=True, exist_ok=True)
-        
-        # Get initial sequence ID to track changes
+        # Get important values from the detector
+        num_images, num_images_per_file, num_triggers = await asyncio.gather(
+            self._driver.num_images.get_value(),
+            self._driver.fw_nimgs_per_file.get_value(),
+            self._driver.num_triggers.get_value(),
+        )
+
+        # Get the initial sequence ID to use to determine the indices written
         self._initial_sequence_id = await self._driver.sequence_id.get_value()
-        
-        # Get dataset info for the describe output
-        array_size_x = await self._driver.array_size_x.get_value()
-        array_size_y = await self._driver.array_size_y.get_value()
-        data_type = await self._driver.data_type.get_value()
-        
-        # Convert data type to numpy dtype
-        dtype_map = {
-            "UInt8": "uint8",
-            "UInt16": "uint16", 
-            "UInt32": "uint32",
-            "Int8": "int8",
-            "Int16": "int16",
-            "Int32": "int32",
-            "Float32": "float32",
-            "Float64": "float64",
+
+        # Exposures per event is a combination of multiple signals, so we can't simply
+        # set it on the detector, unlike other detector implementations
+        self._exposures_per_event = num_images * num_triggers
+        if self._exposures_per_event != exposures_per_event:
+            msg = ("Mismatch between the calculated exposures per event and the expected exposures per event. "
+                   f"Got {self._exposures_per_event} but expected {exposures_per_event}.")
+            raise ValueError(msg)
+
+        detector_shape, np_dtype = await asyncio.gather(
+            self._dataset_describer.shape(),
+            self._dataset_describer.np_datatype(),
+        )
+
+        # Add the master file datasets
+        master_datasets = [
+            HDFDatasetDescription(
+                data_key=f"{name}_y_pixel_size",
+                dataset="entry/instrument/detector/y_pixel_size",
+                shape=(self._exposures_per_event,),
+                dtype_numpy=np.dtype(np.float32).str,
+                chunk_shape=(1,),
+            ),
+            HDFDatasetDescription(
+                data_key=f"{name}_x_pixel_size",
+                dataset="entry/instrument/detector/x_pixel_size",
+                shape=(self._exposures_per_event,),
+                dtype_numpy=np.dtype(np.float32).str,
+                chunk_shape=(1,),
+            ),
+            HDFDatasetDescription(
+                data_key=f"{name}_detector_distance",
+                dataset="entry/instrument/detector/distance",
+                shape=(self._exposures_per_event,),
+                dtype_numpy=np.dtype(np.float32).str,
+                chunk_shape=(1,),
+            ),
+            HDFDatasetDescription(
+                data_key=f"{name}_incident_wavelength",
+                dataset="entry/instrument/detector/incident_wavelength",
+                shape=(self._exposures_per_event,),
+                dtype_numpy=np.dtype(np.float32).str,
+                chunk_shape=(1,),
+            ),
+            HDFDatasetDescription(
+                data_key=f"{name}_frame_time",
+                dataset="entry/instrument/detector/frame_time",
+                shape=(self._exposures_per_event,),
+                dtype_numpy=np.dtype(np.float32).str,
+                chunk_shape=(1,),
+            ),
+            HDFDatasetDescription(
+                data_key=f"{name}_beam_center_x",
+                dataset="entry/instrument/detector/beam_center_x",
+                shape=(self._exposures_per_event,),
+                dtype_numpy=np.dtype(np.float32).str,
+                chunk_shape=(1,),
+            ),
+            HDFDatasetDescription(
+                data_key=f"{name}_beam_center_y",
+                dataset="entry/instrument/detector/beam_center_y",
+                shape=(self._exposures_per_event,),
+                dtype_numpy=np.dtype(np.float32).str,
+                chunk_shape=(1,),
+            ),
+            HDFDatasetDescription(
+                data_key=f"{name}_count_time",
+                dataset="entry/instrument/detector/count_time",
+                shape=(self._exposures_per_event,),
+                dtype_numpy=np.dtype(np.float32).str,
+                chunk_shape=(1,),
+            ),
+            HDFDatasetDescription(
+                data_key=f"{name}_pixel_mask",
+                dataset="entry/instrument/detector/detectorSpecific/pixel_mask",
+                # TODO: Maybe only 1 mask?
+                shape=(self._exposures_per_event, *detector_shape),
+                dtype_numpy=np.dtype(np.uint8).str,
+                chunk_shape=(1, *detector_shape),
+            ),
+        ]
+
+        # Add the array datasets (linked from the master file)
+        # Linked keys are of the form
+        # - "/entry/data_000001"
+        # - "/entry/data_000002"
+        # - ...
+        # Example: if exposures_per_event (num_images) is 60, num_triggers is 2, and num_images_per_file is 100,
+        # then the data_000001 file will have 100 images and the data_000002 filewill have 20 images.
+        # Put simply, the last file could have less than num_images_per_file images.
+        frame_datasets = [
+            HDFDatasetDescription(
+                data_key=f"{name}_{i}",
+                dataset=f"/entry/data_{i:06d}",
+                shape=(min(num_images_per_file, self._exposures_per_event - (i - 1) * num_images_per_file), *detector_shape),
+                dtype_numpy=np_dtype,
+                chunk_shape=(1, *detector_shape),
+            )
+            for i in range(1, num_triggers + 1)
+        ]
+
+        self._datasets = master_datasets + frame_datasets
+
+        describe = {
+            ds.data_key: DataKey(
+                source=await self._driver.file_path.get_value(),
+                shape=list(ds.shape),
+                dtype="array" if self._exposures_per_event > 1 or len(ds.shape) > 1 else "number",
+                dtype_numpy=ds.dtype_numpy,
+                external="STREAM:",
+            )
+            for ds in self._datasets
         }
-        dtype = dtype_map.get(data_type, "uint16")  # Default to uint16
-        
-        return {
-            "primary": {
-                "source": f"EIGER:{self._resource_uid}",
-                "shape": [int(array_size_y), int(array_size_x)],
-                "dtype": dtype,
-                "external": f"FILESTORE:{self._stream_resource_doc['uid']}",
-            }
-        }
+
+        return describe
 
     async def observe_indices_written(self, timeout: float = 10.0):
         """Monitor the number of files written by the Eiger FileWriter."""
@@ -357,30 +436,27 @@ class EigerWriter(DetectorWriter):
         current_sequence_id = await self._driver.sequence_id.get_value()
         return int(current_sequence_id - self._initial_sequence_id)
 
-    async def collect_stream_docs(self, indices_written: int):
+    async def collect_stream_docs(self, name: str, indices_written: int) -> AsyncIterator[StreamAsset]:
         """Generate stream documents for the written HDF5 files.
         
         Follows the pattern from the original EigerFileHandler.generate_datum method.
         """
-        if self._stream_resource_doc is None:
-            return
-            
-        # Yield the stream resource document first
-        yield "stream_resource", self._stream_resource_doc
-        
-        # Generate stream datum documents for each index written
-        for i in range(indices_written):
-            # Calculate the actual sequence number like in original implementation
-            sequence_number = self._sequence_id_offset + self._initial_sequence_id + i
-            
-            stream_datum = {
-                "descriptor": "primary",
-                "stream_resource": self._stream_resource_doc["uid"],
-                "seq_num": i,
-                "timestamps": [time.time()],
-                "datum_kwargs": {"seq_id": int(sequence_number)},
-            }
-            yield "stream_datum", stream_datum
+        # TODO: Is this needed?
+        await self._driver.fw_state.wait_for_value(EigerFileWriterState.IDLE)
+        if indices_written:
+            if not self._composer:
+                # TODO: Use master file path...
+                path = Path(await self._driver.file_path.get_value())
+                self._composer = HDFDocumentComposer(
+                    path,
+                    self._datasets,
+                )
+
+                for doc in self._composer.stream_resources():
+                    yield "stream_resource", doc
+
+            for doc in self._composer.stream_data(indices_written):
+                yield "stream_datum", doc
 
     async def close(self) -> None:
         """Clean up file writing after acquisition and validate files exist."""
@@ -438,7 +514,8 @@ class EigerController(ADBaseController[EigerDriverIO]):
             image_mode = ADImageMode.MULTIPLE
 
         await asyncio.gather(
-            self._driver.num_images.set(trigger_info.total_number_of_exposures),
+            self._driver.num_triggers.set(trigger_info.number_of_events),
+            self._driver.num_images.set(trigger_info.exposures_per_event),
             self._driver.image_mode.set(image_mode),
         )
 

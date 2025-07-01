@@ -9,11 +9,13 @@ from unittest.mock import patch
 from bluesky.run_engine import RunEngine
 import pytest
 from ophyd_async.core import (
+    PathProvider,
     init_devices,
     PathInfo,
     StaticPathProvider,
     StaticFilenameProvider,
 )
+from ophyd_async.epics.adcore import ADBaseDatasetDescriber
 from ophyd_async.testing import (
     set_mock_value,
     assert_reading,
@@ -35,8 +37,6 @@ def mock_eiger_driver(RE: RunEngine) -> EigerDriverIO:
         driver = EigerDriverIO("MOCK:EIGER:CAM:")
     
     # Set up some default mock values
-    set_mock_value(driver.sequence_id, 0.0)
-    set_mock_value(driver.fw_nimgs_per_file, 1000.0)
     set_mock_value(driver.array_size_x, 2048)
     set_mock_value(driver.array_size_y, 2048)
     set_mock_value(driver.data_type, "UInt16")
@@ -45,7 +45,7 @@ def mock_eiger_driver(RE: RunEngine) -> EigerDriverIO:
 
 
 @pytest.fixture
-def mock_path_provider():
+def mock_path_provider() -> PathProvider:
     """Create a mock path provider for testing."""
     return StaticPathProvider(
         StaticFilenameProvider("test_eiger"),
@@ -54,42 +54,86 @@ def mock_path_provider():
 
 
 @pytest.fixture
-def eiger_writer(mock_eiger_driver, mock_path_provider) -> EigerWriter:
+def eiger_writer(mock_eiger_driver: EigerDriverIO, mock_path_provider: PathProvider) -> EigerWriter:
     """Create an EigerWriter instance for testing."""
-    return EigerWriter(mock_eiger_driver, mock_path_provider)
+    dataset_describer = ADBaseDatasetDescriber(mock_eiger_driver)
+    return EigerWriter(mock_eiger_driver, mock_path_provider, dataset_describer)
 
 
 @pytest.mark.asyncio
-async def test_eiger_writer_initialization(eiger_writer, mock_eiger_driver, mock_path_provider):
+async def test_eiger_writer_initialization(eiger_writer: EigerWriter, mock_eiger_driver: EigerDriverIO, mock_path_provider: PathProvider):
     """Test that EigerWriter initializes correctly."""
     assert eiger_writer._driver is mock_eiger_driver
     assert eiger_writer._path_provider is mock_path_provider
-    assert eiger_writer._sequence_id_offset == 1
+    assert eiger_writer._dataset_describer is not None
+    assert eiger_writer._file_info is None
+    assert eiger_writer._current_sequence_id is None
+    assert eiger_writer._composer is None
 
 
 @pytest.mark.asyncio
-async def test_eiger_writer_open(eiger_writer, mock_eiger_driver):
+async def test_eiger_writer_open(eiger_writer: EigerWriter, mock_eiger_driver: EigerDriverIO) -> None:
     """Test the open method configures the detector correctly."""
-    # Mock the file path creation
-    with patch("pathlib.Path.mkdir"), patch("pathlib.Path.exists", return_value=False):
-        describe_doc = await eiger_writer.open(multiplier=1)
-    
-    # Check that the describe document has the expected structure
-    assert "primary" in describe_doc
-    primary_doc = describe_doc["primary"]
-    
-    assert "source" in primary_doc
-    assert primary_doc["source"].startswith("EIGER:")
-    assert primary_doc["shape"] == [2048, 2048]
-    assert primary_doc["dtype"] == "uint16"
-    assert "FILESTORE:" in primary_doc["external"]
-    
-    # Verify the detector was configured correctly
+    array_size_x, array_size_y, data_type = asyncio.gather(
+        mock_eiger_driver.array_size_x.get_value(),
+        mock_eiger_driver.array_size_y.get_value(),
+        mock_eiger_driver.data_type.get_value(),
+    )
+
+    # Case 1: 1 image per file, 1 image, 1 trigger
+    set_mock_value(mock_eiger_driver.fw_nimgs_per_file, 1)
+    set_mock_value(mock_eiger_driver.num_images, 1)
+    set_mock_value(mock_eiger_driver.num_triggers, 1)
+
+    description = await eiger_writer.open(name="test_eiger", exposures_per_event=1)
     assert await mock_eiger_driver.fw_enable.get_value() is True
     assert await mock_eiger_driver.save_files.get_value() is True
-    assert await mock_eiger_driver.fw_hdf5_format.get_value() == EigerHDF5Format.V2024_2
-    assert await mock_eiger_driver.fw_compression.get_value() is True
+    assert await mock_eiger_driver.fw_hdf5_format.get_value() == EigerHDF5Format.LEGACY
     assert await mock_eiger_driver.data_source.get_value() == EigerDataSource.FILE_WRITER
+    assert description.keys() == ["test_eiger_y_pixel_size",
+                                  "test_eiger_x_pixel_size",
+                                  "test_eiger_detector_distance",
+                                  "test_eiger_incident_wavelength",
+                                  "test_eiger_frame_time",
+                                  "test_eiger_beam_center_x",
+                                  "test_eiger_beam_center_y",
+                                  "test_eiger_count_time",
+                                  "test_eiger_pixel_mask",
+                                  "test_eiger_1"]
+
+    # Case 2: 4 images per file, 11 images, 2 triggers
+    # Expect 6 files, the first 5 will have 4 images, the last will have 2
+    set_mock_value(mock_eiger_driver.fw_nimgs_per_file, 4)
+    set_mock_value(mock_eiger_driver.num_images, 11)
+    set_mock_value(mock_eiger_driver.num_triggers, 2)
+    description = await eiger_writer.open(name="test_eiger", exposures_per_event=await mock_eiger_driver.num_images.get_value())
+    assert description.keys() == ["test_eiger_y_pixel_size",
+                                  "test_eiger_x_pixel_size",
+                                  "test_eiger_detector_distance",
+                                  "test_eiger_incident_wavelength",
+                                  "test_eiger_frame_time",
+                                  "test_eiger_beam_center_x",
+                                  "test_eiger_beam_center_y",
+                                  "test_eiger_count_time",
+                                  "test_eiger_pixel_mask",
+                                  "test_eiger_1",
+                                  "test_eiger_2",
+                                  "test_eiger_3",
+                                  "test_eiger_4",
+                                  "test_eiger_5",
+                                  "test_eiger_6"]
+
+    for i in range(1, 6):
+        data_key = description[f"test_eiger_{i}"]
+        assert data_key.shape == (4, array_size_x, array_size_y)
+        assert data_key.dtype == data_type
+        assert data_key.external == "STREAM:"
+        assert data_key.source == f"/tmp/test_data/test_eiger_1_master.h5"
+    data_key = description["test_eiger_6"]
+    assert data_key.shape == (2, array_size_x, array_size_y)
+    assert data_key.dtype == data_type
+    assert data_key.external == "STREAM:"
+    assert data_key.source == f"/tmp/test_data/test_eiger_1_master.h5"
 
 
 @pytest.mark.asyncio

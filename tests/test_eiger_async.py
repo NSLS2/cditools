@@ -313,3 +313,6 @@ async def test_eiger_writer_close(eiger_writer: EigerWriter, mock_eiger_driver: 
     assert eiger_writer._composer is None
     assert eiger_writer._current_sequence_id is None
     assert eiger_writer._file_info is None
+
+
+# TODO: Test the controller's overridden methods and do an integration test with bluesky plans + tiled readback 

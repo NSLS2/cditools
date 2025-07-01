@@ -2,6 +2,7 @@
 Ophyd Async implementation for Eiger detector.
 """
 import asyncio
+from math import ceil
 from typing import Sequence, Annotated as A, Any
 from pathlib import Path
 from logging import getLogger
@@ -160,7 +161,7 @@ class EigerDriverIO(ADBaseIO):
     ext_gate_mode: A[SignalRW[str], PvSuffix.rbv("ExtGateMode")]
     trigger: A[SignalRW[float], PvSuffix("Trigger")]
     trigger_exposure: A[SignalRW[float], PvSuffix.rbv("TriggerExposure")]
-    num_triggers: A[SignalRW[float], PvSuffix.rbv("NumTriggers")]
+    num_triggers: A[SignalRW[int], PvSuffix.rbv("NumTriggers")]
     manual_trigger: A[SignalRW[bool], PvSuffix.rbv("ManualTrigger")]
     trigger_start_delay: A[SignalRW[float], PvSuffix.rbv("TriggerStartDelay")]
 
@@ -186,7 +187,7 @@ class EigerDriverIO(ADBaseIO):
     fw_compression: A[SignalRW[bool], PvSuffix.rbv("FWCompression")]
     fw_nimgs_per_file: A[SignalRW[float], PvSuffix.rbv("FWNImgsPerFile")]
     fw_name_pattern: A[SignalRW[str], PvSuffix.rbv("FWNamePattern")]
-    sequence_id: A[SignalR[float], PvSuffix("SequenceId")]
+    sequence_id: A[SignalR[int], PvSuffix("SequenceId")]
     save_files: A[SignalRW[bool], PvSuffix.rbv("SaveFiles")]
     file_path: A[SignalRW[str], PvSuffix.rbv("FilePath")]
     file_owner: A[SignalRW[str], PvSuffix.rbv("FileOwner")]
@@ -245,6 +246,7 @@ class EigerWriter(DetectorWriter):
         self._file_info: PathInfo | None = None
         self._current_sequence_id: int | None = None
         self._composer: HDFDocumentComposer | None = None
+        self._exposures_per_event: int = 1
 
     async def open(self, name: str, exposures_per_event: int = 1) -> dict[str, DataKey]:
         """Setup file writing for acquisition."""
@@ -353,6 +355,9 @@ class EigerWriter(DetectorWriter):
             ),
         ]
 
+        # Cache for use later
+        self._exposures_per_event = exposures_per_event
+
         # Add the array datasets (linked from the master file)
         # Linked keys are of the form
         # - "/entry/data_000001"
@@ -361,15 +366,16 @@ class EigerWriter(DetectorWriter):
         # Example: if exposures_per_event (num_images) is 60, num_triggers is 2, and num_images_per_file is 100,
         # then the data_000001 file will have 100 images and the data_000002 filewill have 20 images.
         # Put simply, the last file could have less than num_images_per_file images.
+        total_images = num_triggers * exposures_per_event
         frame_datasets = [
             HDFDatasetDescription(
                 data_key=f"{name}_{i}",
                 dataset=f"/entry/data_{i:06d}",
-                shape=(min(num_images_per_file, exposures_per_event - (i - 1) * num_images_per_file), *detector_shape),
+                shape=(min(num_images_per_file, total_images - (i - 1) * num_images_per_file), *detector_shape),
                 dtype_numpy=np_dtype,
                 chunk_shape=(1, *detector_shape),
             )
-            for i in range(1, num_triggers + 1)
+            for i in range(1, ceil(total_images / num_images_per_file) + 1)
         ]
 
         self._datasets = master_datasets + frame_datasets
@@ -393,18 +399,16 @@ class EigerWriter(DetectorWriter):
             raise ValueError("Must call EigerWriter.open() before accessing master file path")
         return self._file_info.directory_path / f"{self._file_info.filename}_{self._current_sequence_id}_master.h5"
 
-    @staticmethod
-    def compute_index(num_images_counter: int, num_triggers: int, num_images: int) -> int:
-        return (num_images_counter // num_triggers) % num_images
+    async def compute_index(self, num_images_counter: int) -> int:
+        if await self._driver.num_images.get_value() != self._exposures_per_event:
+            raise RuntimeError("Detected change to the number of images during acquisition. This is not allowed.")
+        return num_images_counter // self._exposures_per_event
 
     async def observe_indices_written(self, timeout: float = 10.0) -> AsyncGenerator[int, None]:
         """Monitor the number of files written by the Eiger FileWriter."""
         async for num_images_counter in observe_value(self._driver.num_images_counter, timeout):
-            num_triggers, num_images = await asyncio.gather(
-                self._driver.num_triggers.get_value(),
-                self._driver.num_images.get_value(),
-            )
-            yield self.compute_index(num_images_counter, num_triggers, num_images)
+            print(f"{num_images_counter=}")
+            yield await self.compute_index(num_images_counter)
 
     async def get_indices_written(self) -> int:
         """Get the current number of indices written.
@@ -413,19 +417,10 @@ class EigerWriter(DetectorWriter):
         to correspond to a single index. This is in contrast to the ophyd-sync
         implementation, where the `num_triggers` was ignored.
         """
-
-        num_images_counter, num_triggers, num_images = await asyncio.gather(
-            self._driver.num_images_counter.get_value(),
-            self._driver.num_triggers.get_value(),
-            self._driver.num_images.get_value(),
-        )
-        return self.compute_index(num_images_counter, num_triggers, num_images)
+        return await self.compute_index(await self._driver.num_images_counter.get_value())
 
     async def collect_stream_docs(self, name: str, indices_written: int) -> AsyncIterator[StreamAsset]:
-        """Generate stream documents for the written HDF5 files.
-        
-        Follows the pattern from the original EigerFileHandler.generate_datum method.
-        """
+        """Generate stream documents for the written HDF5 files."""
         if indices_written:
             if not self._composer:
                 self._composer = HDFDocumentComposer(

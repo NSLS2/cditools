@@ -269,8 +269,8 @@ class EigerWriter(ADWriter[EigerFileIO]):
     """Eiger-specific file writer using the built-in FileWriter interface."""
 
     default_suffix: str = "cam1:"
-    # Forced minimum number of images per file to simplify the logic
-    _min_num_images_per_file: int = 100000000
+    # Forced minimum number of images per file to force a single HDF5 file
+    _min_num_images_per_file: int = 1e8
 
     def __init__(
         self,
@@ -306,6 +306,10 @@ class EigerWriter(ADWriter[EigerFileIO]):
                 await self.fileio.fw_nimgs_per_file.get_value()
             )
             await self.fileio.fw_nimgs_per_file.set(self._min_num_images_per_file)
+            logger.warning(
+                "Setting fw_nimgs_per_file to %d to force writing to a single HDF5 file",
+                self._min_num_images_per_file,
+            )
 
         # Set the name pattern with $id replacement similar to original
         name_pattern = f"{self._file_info.filename}_$id"

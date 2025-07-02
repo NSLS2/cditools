@@ -520,18 +520,18 @@ class EigerController(ADBaseController[EigerDriverIO]):
     async def prepare(self, trigger_info: TriggerInfo) -> None:
         """Prepare the detector for acquisition."""
         if (exposure := trigger_info.livetime) is not None:
-            await self._driver.acquire_time.set(exposure)
+            await self.driver.acquire_time.set(exposure)
 
         # Configure trigger mode based on TriggerInfo
         if trigger_info.trigger == DetectorTrigger.INTERNAL:
-            await self._driver.trigger_mode.set(EigerTriggerMode.INTERNAL_SERIES)
-        elif trigger_info.trigger == DetectorTrigger.EXTERNAL:
-            await self._driver.trigger_mode.set(EigerTriggerMode.EXTERNAL_SERIES)
+            await self.driver.trigger_mode.set(EigerTriggerMode.INTERNAL_SERIES)
+        elif trigger_info.trigger == DetectorTrigger.EDGE_TRIGGER:
+            await self.driver.trigger_mode.set(EigerTriggerMode.EXTERNAL_SERIES)
         elif trigger_info.trigger in [
             DetectorTrigger.VARIABLE_GATE,
             DetectorTrigger.CONSTANT_GATE,
         ]:
-            await self._driver.trigger_mode.set(EigerTriggerMode.EXTERNAL_GATE)
+            await self.driver.trigger_mode.set(EigerTriggerMode.EXTERNAL_GATE)
         else:
             msg = f"Trigger mode {trigger_info.trigger} not supported"
             raise NotImplementedError(msg)
@@ -542,9 +542,9 @@ class EigerController(ADBaseController[EigerDriverIO]):
             image_mode = ADImageMode.MULTIPLE
 
         await asyncio.gather(
-            self._driver.num_triggers.set(trigger_info.number_of_events),
-            self._driver.num_images.set(trigger_info.exposures_per_event),
-            self._driver.image_mode.set(image_mode),
+            self.driver.num_triggers.set(trigger_info.number_of_events),
+            self.driver.num_images.set(trigger_info.exposures_per_event),
+            self.driver.image_mode.set(image_mode),
         )
 
 

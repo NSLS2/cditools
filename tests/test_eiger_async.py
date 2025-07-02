@@ -14,8 +14,10 @@ from ophyd_async.core import (
     StaticFilenameProvider,
     StaticPathProvider,
     init_devices,
+    TriggerInfo,
+    DetectorTrigger,
 )
-from ophyd_async.epics.adcore import ADBaseDatasetDescriber
+from ophyd_async.epics.adcore import ADBaseDatasetDescriber, ADImageMode
 from ophyd_async.testing import (
     set_mock_value,
 )
@@ -25,7 +27,18 @@ from cditools.eiger_async import (
     EigerDriverIO,
     EigerHDF5Format,
     EigerWriter,
+    EigerDetector,
+    EigerController,
+    EigerTriggerMode,
 )
+
+
+@pytest.fixture
+def mock_eiger_detector(RE: RunEngine) -> EigerDetector:
+    path_provider = StaticPathProvider(StaticFilenameProvider("test_eiger"))
+    with init_devices(mock=True):
+        detector = EigerDetector("MOCK:EIGER:", path_provider, name="test_eiger")
+    return detector
 
 
 @pytest.fixture
@@ -57,6 +70,11 @@ def eiger_writer(
     """Create an EigerWriter instance for testing."""
     dataset_describer = ADBaseDatasetDescriber(mock_eiger_driver)
     return EigerWriter(mock_eiger_driver, mock_path_provider, dataset_describer)
+
+
+@pytest.fixture
+def eiger_controller(mock_eiger_driver: EigerDriverIO) -> EigerController:
+    return EigerController(mock_eiger_driver)
 
 
 @pytest.mark.asyncio
@@ -295,7 +313,8 @@ async def test_eiger_writer_collect_stream_docs(
         data_docs = []
         for i in range(1, num_triggers + 1):
             async for doc_type, doc in eiger_writer.collect_stream_docs(
-                name="test_eiger", indices_written=i
+                _name="",
+                indices_written=i
             ):
                 if doc_type == "stream_resource":
                     resource_docs.append(doc)
@@ -359,3 +378,50 @@ async def test_eiger_writer_close(
 
 
 # TODO: Test the controller's overridden methods and do an integration test with bluesky plans + tiled readback
+@pytest.mark.asyncio
+async def test_eiger_controller_prepare(eiger_controller: EigerController) -> None:
+    trigger_info = TriggerInfo(
+        number_of_events=1,
+        livetime=0.01,
+        deadtime=0.001,
+        trigger=DetectorTrigger.INTERNAL,
+        exposure_timeout=1.0,
+        exposures_per_event=1,
+    )
+    await eiger_controller.prepare(trigger_info)
+    assert await eiger_controller.driver.acquire_time.get_value() == 0.01
+    assert await eiger_controller.driver.trigger_mode.get_value() == EigerTriggerMode.INTERNAL_SERIES
+    assert await eiger_controller.driver.num_triggers.get_value() == 1
+    assert await eiger_controller.driver.num_images.get_value() == 1
+    assert await eiger_controller.driver.image_mode.get_value() == ADImageMode.MULTIPLE
+
+    trigger_info = TriggerInfo(
+        number_of_events=10,
+        livetime=0.0,
+        deadtime=0.0,
+        trigger=DetectorTrigger.EDGE_TRIGGER,
+        exposure_timeout=10.0,
+        exposures_per_event=5,
+    )
+    await eiger_controller.prepare(trigger_info)
+    assert await eiger_controller.driver.acquire_time.get_value() == 0.0
+    assert await eiger_controller.driver.trigger_mode.get_value() == EigerTriggerMode.EXTERNAL_SERIES
+    assert await eiger_controller.driver.num_triggers.get_value() == 10
+    assert await eiger_controller.driver.num_images.get_value() == 5
+    assert await eiger_controller.driver.image_mode.get_value() == ADImageMode.MULTIPLE
+    
+    trigger_info = TriggerInfo(
+        number_of_events=0,
+        livetime=None,
+        deadtime=0.0,
+        trigger=DetectorTrigger.VARIABLE_GATE,
+        exposure_timeout=10.0,
+        exposures_per_event=1,
+    )
+    await eiger_controller.prepare(trigger_info)
+    assert await eiger_controller.driver.acquire_time.get_value() == 0.0
+    assert await eiger_controller.driver.trigger_mode.get_value() == EigerTriggerMode.EXTERNAL_GATE
+    assert await eiger_controller.driver.num_triggers.get_value() == 0
+    assert await eiger_controller.driver.num_images.get_value() == 1
+    assert await eiger_controller.driver.image_mode.get_value() == ADImageMode.CONTINUOUS
+

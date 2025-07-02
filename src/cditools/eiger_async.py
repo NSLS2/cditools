@@ -15,6 +15,7 @@ import numpy as np
 from bluesky.protocols import StreamAsset
 from event_model import DataKey
 from ophyd_async.core import (
+    AsyncStatus,
     DatasetDescriber,
     DetectorTrigger,
     HDFDatasetDescription,
@@ -334,14 +335,14 @@ class EigerWriter(ADWriter[EigerFileIO]):
                 data_key=f"{name}_y_pixel_size",
                 dataset="entry/instrument/detector/y_pixel_size",
                 shape=(exposures_per_event,),
-                dtype_numpy=np.dtype(np.float32).str,
+                dtype_numpy=np.dtype(np.uint8).str,
                 chunk_shape=(1,),
             ),
             HDFDatasetDescription(
                 data_key=f"{name}_x_pixel_size",
                 dataset="entry/instrument/detector/x_pixel_size",
                 shape=(exposures_per_event,),
-                dtype_numpy=np.dtype(np.float32).str,
+                dtype_numpy=np.dtype(np.uint8).str,
                 chunk_shape=(1,),
             ),
             HDFDatasetDescription(
@@ -369,14 +370,14 @@ class EigerWriter(ADWriter[EigerFileIO]):
                 data_key=f"{name}_beam_center_x",
                 dataset="entry/instrument/detector/beam_center_x",
                 shape=(exposures_per_event,),
-                dtype_numpy=np.dtype(np.float32).str,
+                dtype_numpy=np.dtype(np.uint8).str,
                 chunk_shape=(1,),
             ),
             HDFDatasetDescription(
                 data_key=f"{name}_beam_center_y",
                 dataset="entry/instrument/detector/beam_center_y",
                 shape=(exposures_per_event,),
-                dtype_numpy=np.dtype(np.float32).str,
+                dtype_numpy=np.dtype(np.uint8).str,
                 chunk_shape=(1,),
             ),
             HDFDatasetDescription(
@@ -437,6 +438,7 @@ class EigerWriter(ADWriter[EigerFileIO]):
 
         self._datasets = master_datasets + frame_datasets
 
+        logger.warning("OPENING FILE")
         return {
             ds.data_key: DataKey(
                 source=self._master_file_path.as_posix(),
@@ -453,6 +455,7 @@ class EigerWriter(ADWriter[EigerFileIO]):
     @property
     def _master_file_path(self) -> Path | None:
         if self._current_sequence_id is None or self._file_info is None:
+            logger.warning("No master file path found for sequence id %s and file info %s", self._current_sequence_id, self._file_info)
             return None
         return (
             self._file_info.directory_path
@@ -479,6 +482,7 @@ class EigerWriter(ADWriter[EigerFileIO]):
     async def close(self) -> None:
         """Clean up file writing after acquisition and validate files exist."""
         # Disable file writer and reset number of images per file
+        logger.warning("CLOSING FILE")
         await asyncio.gather(
             self.fileio.fw_enable.set(False),
             self.fileio.save_files.set(False),
@@ -572,6 +576,7 @@ class EigerDetector(AreaDetector[EigerController]):
         # TODO: Fix typing in base class
         self.driver: EigerDriverIO = cast(EigerDriverIO, self.driver)
 
+    @AsyncStatus.wrap
     async def stage(self) -> None:
         """Prepare the eiger detector for acquisition.
 

@@ -37,10 +37,13 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
+  "entrypoints",
   "pytest >=6",
   "pytest-cov >=3",
   "pytest-asyncio >=0.18",
   "caproto[standard] >=0.4.2rc1,!=1.2.0",
+  "tiled[minimal-client]",
+  "tiled[minimal-server]",
 ]
 dev = [
   "caproto[standard] >=0.4.2rc1,!=1.2.0",
@@ -52,6 +55,7 @@ dev = [
   "ipython",
   "ruff",
   "aioca",
+  "tiled[minimal-client,server]",
 ]
 docs = [
   "sphinx>=7.0",
@@ -73,12 +77,10 @@ black-hole-ioc = "cditools.simulated.black_hole:main"
 [tool.setuptools_scm]
 write_to = "src/cditools/_version.py"
 
-
 [tool.uv]
 dev-dependencies = [
   "cditools[test]",
 ]
-
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -153,7 +155,6 @@ isort.required-imports = ["from __future__ import annotations"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["T20", "ARG001"]
 "noxfile.py" = ["T20"]
-
 
 [tool.pylint]
 py-version = "3.9"

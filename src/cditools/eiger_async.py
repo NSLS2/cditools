@@ -33,6 +33,7 @@ from ophyd_async.epics.adcore import (
     ADBaseController,
     ADBaseIO,
     ADImageMode,
+    ADWriter,
     AreaDetector,
     NDPluginBaseIO,
 )
@@ -422,7 +423,7 @@ class EigerWriter(DetectorWriter):
 
         self._datasets = master_datasets + frame_datasets
 
-        describe = {
+        return {
             ds.data_key: DataKey(
                 source=self._master_file_path.as_posix(),
                 shape=list(ds.shape),
@@ -435,14 +436,11 @@ class EigerWriter(DetectorWriter):
             for ds in self._datasets
         }
 
-        return describe
-
     @property
     def _master_file_path(self) -> Path:
         if self._current_sequence_id is None or self._file_info is None:
-            raise ValueError(
-                "Must call EigerWriter.open() before accessing master file path"
-            )
+            msg = "Must call EigerWriter.open() before accessing master file path"
+            raise ValueError(msg)
         return (
             self._file_info.directory_path
             / f"{self._file_info.filename}_{self._current_sequence_id}_master.h5"
@@ -450,9 +448,8 @@ class EigerWriter(DetectorWriter):
 
     async def compute_index(self, num_images_counter: int) -> int:
         if await self._driver.num_images.get_value() != self._exposures_per_event:
-            raise RuntimeError(
-                "Detected change to the number of images during acquisition. This is not allowed."
-            )
+            msg = "Detected change to the number of images during acquisition. This is not allowed."
+            raise RuntimeError(msg)
         return num_images_counter // self._exposures_per_event
 
     async def observe_indices_written(
@@ -462,7 +459,6 @@ class EigerWriter(DetectorWriter):
         async for num_images_counter in observe_value(
             self._driver.num_images_counter, timeout
         ):
-            print(f"{num_images_counter=}")
             yield await self.compute_index(num_images_counter)
 
     async def get_indices_written(self) -> int:
@@ -477,7 +473,7 @@ class EigerWriter(DetectorWriter):
         )
 
     async def collect_stream_docs(
-        self, name: str, indices_written: int
+        self, _name: str, indices_written: int
     ) -> AsyncIterator[StreamAsset]:
         """Generate stream documents for the written HDF5 files."""
         if indices_written:
@@ -502,7 +498,7 @@ class EigerWriter(DetectorWriter):
         )
 
         if not self._master_file_path.exists():
-            logger.warning(f"Master file was not written: {self._master_file_path}")
+            logger.warning("Master file was not written: %s", self._master_file_path)
 
         self._composer = None
         self._file_info = None
@@ -517,7 +513,7 @@ class EigerController(ADBaseController[EigerDriverIO]):
     ) -> None:
         super().__init__(driver, *args, **kwargs)
 
-    def get_deadtime(self, exposure: float | None) -> float:
+    def get_deadtime(self, _exposure: float | None) -> float:
         """Get detector deadtime for the given exposure."""
         return 0.001
 
@@ -537,9 +533,8 @@ class EigerController(ADBaseController[EigerDriverIO]):
         ]:
             await self._driver.trigger_mode.set(EigerTriggerMode.EXTERNAL_GATE)
         else:
-            raise NotImplementedError(
-                f"Trigger mode {trigger_info.trigger} not supported"
-            )
+            msg = f"Trigger mode {trigger_info.trigger} not supported"
+            raise NotImplementedError(msg)
 
         if trigger_info.total_number_of_exposures == 0:
             image_mode = ADImageMode.CONTINUOUS

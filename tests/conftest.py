@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import pprint
 
 import pytest
@@ -41,15 +42,16 @@ def _error_and_kill_pending_tasks(
     # If it did then it makes sense that there's some tasks we need to cancel,
     # but an exception will already have been raised.
     if unfinished_tasks and test_passed:
-        raise RuntimeError(
+        msg = (
             f"Not all tasks closed during test {test_name}:\n"
             f"{pprint.pformat(unfinished_tasks, width=88)}"
         )
+        raise RuntimeError(msg)
 
     return unfinished_tasks
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def RE(request: pytest.FixtureRequest):
     loop = asyncio.new_event_loop()
     loop.set_debug(True)
@@ -58,10 +60,8 @@ def RE(request: pytest.FixtureRequest):
 
     def clean_event_loop():
         if RE.state not in ("idle", "panicked"):
-            try:
+            with contextlib.suppress(TransitionError):
                 RE.halt()
-            except TransitionError:
-                pass
 
         loop.call_soon_threadsafe(loop.stop)
         RE._th.join()
@@ -73,5 +73,5 @@ def RE(request: pytest.FixtureRequest):
         finally:
             loop.close()
 
-    request.addfinalizer(clean_event_loop)
-    return RE
+    yield RE
+    clean_event_loop()

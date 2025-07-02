@@ -5,12 +5,11 @@ Ophyd Async implementation for Eiger detector.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Sequence
 from logging import getLogger
-from math import ceil
 from pathlib import Path
 from typing import Annotated as A
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from bluesky.protocols import StreamAsset
@@ -18,7 +17,6 @@ from event_model import DataKey
 from ophyd_async.core import (
     DatasetDescriber,
     DetectorTrigger,
-    DetectorWriter,
     HDFDatasetDescription,
     HDFDocumentComposer,
     PathInfo,
@@ -27,7 +25,6 @@ from ophyd_async.core import (
     SignalRW,
     StrictEnum,
     TriggerInfo,
-    observe_value,
 )
 from ophyd_async.epics.adcore import (
     ADBaseController,
@@ -35,6 +32,7 @@ from ophyd_async.epics.adcore import (
     ADImageMode,
     ADWriter,
     AreaDetector,
+    NDFileIO,
     NDPluginBaseIO,
 )
 from ophyd_async.epics.signal import PvSuffix
@@ -208,23 +206,6 @@ class EigerDriverIO(ADBaseIO):
     bit_depth_image: A[SignalR[int], PvSuffix("BitDepthImage_RBV")]
     count_cutoff: A[SignalR[float], PvSuffix("CountCutoff_RBV")]
 
-    # FileWriter Interface
-    fw_enable: A[SignalRW[bool], PvSuffix.rbv("FWEnable")]
-    fw_state: A[SignalR[str], PvSuffix("FWState_RBV")]
-    fw_hdf5_format: A[SignalRW[EigerHDF5Format], PvSuffix.rbv("FWHDF5Format")]
-    fw_compression: A[SignalRW[bool], PvSuffix.rbv("FWCompression")]
-    fw_nimgs_per_file: A[SignalRW[float], PvSuffix.rbv("FWNImgsPerFile")]
-    fw_name_pattern: A[SignalRW[str], PvSuffix.rbv("FWNamePattern")]
-    sequence_id: A[SignalR[int], PvSuffix("SequenceId")]
-    save_files: A[SignalRW[bool], PvSuffix.rbv("SaveFiles")]
-    file_path: A[SignalRW[str], PvSuffix.rbv("FilePath")]
-    file_owner: A[SignalRW[str], PvSuffix.rbv("FileOwner")]
-    file_owner_grp: A[SignalRW[str], PvSuffix.rbv("FileOwnerGrp")]
-    file_perms: A[SignalRW[str], PvSuffix.rbv("FilePerms")]
-    fw_free: A[SignalR[float], PvSuffix("FWFree_RBV")]
-    fw_auto_remove: A[SignalRW[bool], PvSuffix.rbv("FWAutoRemove")]
-    fw_clear: A[SignalRW[float], PvSuffix("FWClear")]
-
     # Stream Interface
     stream_enable: A[SignalRW[bool], PvSuffix.rbv("StreamEnable")]
     stream_state: A[SignalR[str], PvSuffix("StreamState_RBV")]
@@ -265,59 +246,78 @@ class EigerDriverIO(ADBaseIO):
     energy_eps: A[SignalRW[float], PvSuffix.rbv("EnergyEps")]
 
 
-class EigerWriter(DetectorWriter):
+class EigerFileIO(NDFileIO):
+    """FileWriter interface for the Eiger detector."""
+
+    fw_enable: A[SignalRW[bool], PvSuffix.rbv("FWEnable")]
+    fw_state: A[SignalR[str], PvSuffix("FWState_RBV")]
+    fw_hdf5_format: A[SignalRW[EigerHDF5Format], PvSuffix.rbv("FWHDF5Format")]
+    fw_compression: A[SignalRW[bool], PvSuffix.rbv("FWCompression")]
+    fw_nimgs_per_file: A[SignalRW[float], PvSuffix.rbv("FWNImgsPerFile")]
+    fw_name_pattern: A[SignalRW[str], PvSuffix.rbv("FWNamePattern")]
+    sequence_id: A[SignalR[int], PvSuffix("SequenceId")]
+    save_files: A[SignalRW[bool], PvSuffix.rbv("SaveFiles")]
+    file_owner: A[SignalRW[str], PvSuffix.rbv("FileOwner")]
+    file_owner_grp: A[SignalRW[str], PvSuffix.rbv("FileOwnerGrp")]
+    file_perms: A[SignalRW[str], PvSuffix.rbv("FilePerms")]
+    fw_free: A[SignalR[float], PvSuffix("FWFree_RBV")]
+    fw_auto_remove: A[SignalRW[bool], PvSuffix.rbv("FWAutoRemove")]
+    fw_clear: A[SignalRW[float], PvSuffix("FWClear")]
+
+
+class EigerWriter(ADWriter[EigerFileIO]):
     """Eiger-specific file writer using the built-in FileWriter interface."""
+
+    default_suffix: str = "cam1:"
+    # Forced minimum number of images per file to simplify the logic
+    _min_num_images_per_file: int = 100000000
 
     def __init__(
         self,
-        driver: EigerDriverIO,
+        fileio: EigerFileIO,
         path_provider: PathProvider,
         dataset_describer: DatasetDescriber,
+        plugins: dict[str, NDPluginBaseIO] | None = None,
     ):
-        self._driver = driver
-        self._path_provider = path_provider
-        self._dataset_describer = dataset_describer
+        super().__init__(
+            fileio,
+            path_provider,
+            dataset_describer,
+            file_extension=".h5",
+            mimetype="application/x-hdf5",
+            plugins=plugins,
+        )
 
         self._file_info: PathInfo | None = None
+        self._datasets: list[HDFDatasetDescription] = []
         self._current_sequence_id: int | None = None
+        self._old_fwn_num_images_per_file: int | None = None
         self._composer: HDFDocumentComposer | None = None
-        self._exposures_per_event: int = 1
 
     async def open(self, name: str, exposures_per_event: int = 1) -> dict[str, DataKey]:
         """Setup file writing for acquisition."""
         # Get file path info from path provider
         self._file_info = self._path_provider()
-        self._current_sequence_id = await self._driver.sequence_id.get_value()
+        self._current_sequence_id = await self.fileio.sequence_id.get_value()
+
+        # Force the number of images per file to a large number to simplify the logic
+        if self._old_fwn_num_images_per_file is None:
+            self._old_fwn_num_images_per_file = (
+                await self.fileio.fw_nimgs_per_file.get_value()
+            )
+            await self.fileio.fw_nimgs_per_file.set(self._min_num_images_per_file)
 
         # Set the name pattern with $id replacement similar to original
         name_pattern = f"{self._file_info.filename}_$id"
 
         # Configure the Eiger FileWriter
         await asyncio.gather(
-            self._driver.file_path.set(self._file_info.directory_path.as_posix()),
-            self._driver.fw_name_pattern.set(name_pattern),
-            self._driver.fw_enable.set(True),
-            self._driver.save_files.set(True),
-            self._driver.fw_hdf5_format.set(EigerHDF5Format.LEGACY),
-            self._driver.data_source.set(EigerDataSource.FILE_WRITER),
+            self.fileio.file_path.set(self._file_info.directory_path.as_posix()),
+            self.fileio.fw_name_pattern.set(name_pattern),
+            self.fileio.fw_enable.set(True),
+            self.fileio.save_files.set(True),
+            self.fileio.fw_hdf5_format.set(EigerHDF5Format.LEGACY),
         )
-
-        # Get important values from the detector
-        num_images, num_images_per_file, num_triggers = await asyncio.gather(
-            self._driver.num_images.get_value(),
-            self._driver.fw_nimgs_per_file.get_value(),
-            self._driver.num_triggers.get_value(),
-        )
-
-        # Exposures per event is a combination of multiple signals, so we can't simply
-        # set it on the detector, unlike other detector implementations
-        if num_images != exposures_per_event:
-            msg = (
-                "Mismatch between the number of images set in the detector "
-                "and the expected number of exposures per event. "
-                f"Got {num_images} but expected {exposures_per_event}."
-            )
-            raise ValueError(msg)
 
         detector_shape, np_dtype = await asyncio.gather(
             self._dataset_describer.shape(),
@@ -395,30 +395,40 @@ class EigerWriter(DetectorWriter):
         # Cache for use later
         self._exposures_per_event = exposures_per_event
 
-        # Add the array datasets (linked from the master file)
-        # Linked keys are of the form
-        # - "/entry/data_000001"
-        # - "/entry/data_000002"
-        # - ...
-        # Example: if exposures_per_event (num_images) is 60, num_triggers is 2, and num_images_per_file is 100,
-        # then the data_000001 file will have 100 images and the data_000002 filewill have 20 images.
-        # Put simply, the last file could have less than num_images_per_file images.
-        total_images = num_triggers * exposures_per_event
+        # TODO: Add back once we allow setting `num_images_per_file` again
+        # # Add the array datasets (linked from the master file)
+        # # Linked keys are of the form
+        # # - "/entry/data_000001"
+        # # - "/entry/data_000002"
+        # # - ...
+        # # Example: if exposures_per_event (num_images) is 60, num_triggers is 2, and num_images_per_file is 100,
+        # # then the data_000001 file will have 100 images and the data_000002 filewill have 20 images.
+        # # Put simply, the last file could have less than num_images_per_file images.
+        # total_images = num_triggers * exposures_per_event
+        # frame_datasets = [
+        #     HDFDatasetDescription(
+        #         data_key=f"{name}_{i}",
+        #         dataset=f"/entry/data_{i:06d}",
+        #         shape=(
+        #             min(
+        #                 num_images_per_file,
+        #                 total_images - (i - 1) * num_images_per_file,
+        #             ),
+        #             *detector_shape,
+        #         ),
+        #         dtype_numpy=np_dtype,
+        #         chunk_shape=(1, *detector_shape),
+        #     )
+        #     for i in range(1, ceil(total_images / num_images_per_file) + 1)
+        # ]
         frame_datasets = [
             HDFDatasetDescription(
-                data_key=f"{name}_{i}",
-                dataset=f"/entry/data_{i:06d}",
-                shape=(
-                    min(
-                        num_images_per_file,
-                        total_images - (i - 1) * num_images_per_file,
-                    ),
-                    *detector_shape,
-                ),
+                data_key=f"{name}_1",
+                dataset=f"/entry/data_{1:06d}",
+                shape=(exposures_per_event, *detector_shape),
                 dtype_numpy=np_dtype,
                 chunk_shape=(1, *detector_shape),
             )
-            for i in range(1, ceil(total_images / num_images_per_file) + 1)
         ]
 
         self._datasets = master_datasets + frame_datasets
@@ -437,39 +447,12 @@ class EigerWriter(DetectorWriter):
         }
 
     @property
-    def _master_file_path(self) -> Path:
+    def _master_file_path(self) -> Path | None:
         if self._current_sequence_id is None or self._file_info is None:
-            msg = "Must call EigerWriter.open() before accessing master file path"
-            raise ValueError(msg)
+            return None
         return (
             self._file_info.directory_path
             / f"{self._file_info.filename}_{self._current_sequence_id}_master.h5"
-        )
-
-    async def compute_index(self, num_images_counter: int) -> int:
-        if await self._driver.num_images.get_value() != self._exposures_per_event:
-            msg = "Detected change to the number of images during acquisition. This is not allowed."
-            raise RuntimeError(msg)
-        return num_images_counter // self._exposures_per_event
-
-    async def observe_indices_written(
-        self, timeout: float = 10.0
-    ) -> AsyncGenerator[int, None]:
-        """Monitor the number of files written by the Eiger FileWriter."""
-        async for num_images_counter in observe_value(
-            self._driver.num_images_counter, timeout
-        ):
-            yield await self.compute_index(num_images_counter)
-
-    async def get_indices_written(self) -> int:
-        """Get the current number of indices written.
-
-        Since Eiger defines the number of triggers, we want each trigger
-        to correspond to a single index. This is in contrast to the ophyd-sync
-        implementation, where the `num_triggers` was ignored.
-        """
-        return await self.compute_index(
-            await self._driver.num_images_counter.get_value()
         )
 
     async def collect_stream_docs(
@@ -491,18 +474,20 @@ class EigerWriter(DetectorWriter):
 
     async def close(self) -> None:
         """Clean up file writing after acquisition and validate files exist."""
-        # Disable file writer
+        # Disable file writer and reset number of images per file
         await asyncio.gather(
-            self._driver.fw_enable.set(False),
-            self._driver.save_files.set(False),
+            self.fileio.fw_enable.set(False),
+            self.fileio.save_files.set(False),
+            self.fileio.fw_nimgs_per_file.set(self._old_fwn_num_images_per_file),
         )
 
-        if not self._master_file_path.exists():
+        if self._master_file_path is not None and not self._master_file_path.exists():
             logger.warning("Master file was not written: %s", self._master_file_path)
 
         self._composer = None
         self._file_info = None
         self._current_sequence_id = None
+        self._old_fwn_num_images_per_file = None
 
 
 class EigerController(ADBaseController[EigerDriverIO]):
@@ -549,14 +534,14 @@ class EigerController(ADBaseController[EigerDriverIO]):
 
 
 class EigerDetector(AreaDetector[EigerController]):
-    """Eiger detector implementation using AreaDetector pattern."""
+    """Eiger detector implementation using the AreaDetector pattern."""
 
     def __init__(
         self,
         prefix: str,
         path_provider: PathProvider,
         driver_suffix: str = "cam1:",
-        writer_cls: type[DetectorWriter] = EigerWriter,
+        writer_cls: type[ADWriter] = EigerWriter,
         fileio_suffix: str | None = None,
         name: str = "",
         config_sigs: Sequence[SignalR] = (),
@@ -564,24 +549,13 @@ class EigerDetector(AreaDetector[EigerController]):
     ):
         driver = EigerDriverIO(prefix + driver_suffix)
         controller = EigerController(driver)
-
-        # If the writer class is an ADWriter, use the with_io method
-        # since we want to use one of the AD plugins.
-        # Otherwise, use the internal file writer.
-        if issubclass(writer_cls, ADWriter):
-            writer = writer_cls.with_io(
-                prefix,
-                path_provider,
-                dataset_source=driver,
-                fileio_suffix=fileio_suffix,
-                plugins=plugins,
-            )
-        else:
-            if fileio_suffix is not None or plugins is not None:
-                logger.warning(
-                    "Ignoring params fileio_suffix and plugins for non-ADWriter writer"
-                )
-            writer = writer_cls(driver, path_provider)
+        writer = writer_cls.with_io(
+            prefix,
+            path_provider,
+            dataset_source=driver,
+            fileio_suffix=fileio_suffix,
+            plugins=plugins,
+        )
 
         super().__init__(
             controller=controller,
@@ -590,3 +564,18 @@ class EigerDetector(AreaDetector[EigerController]):
             name=name,
             config_sigs=config_sigs,
         )
+
+        # TODO: Fix typing in base class
+        self.driver: EigerDriverIO = cast(EigerDriverIO, self.driver)
+
+    async def stage(self) -> None:
+        """Prepare the eiger detector for acquisition.
+
+        If the writer is an EigerWriter, set the data source to FILE_WRITER.
+        Otherwise, set the data source to STREAM.
+        """
+        await super().stage()
+        if isinstance(self.fileio, EigerFileIO):
+            await self.driver.data_source.set(EigerDataSource.FILE_WRITER)
+        else:
+            await self.driver.data_source.set(EigerDataSource.STREAM)

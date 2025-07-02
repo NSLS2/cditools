@@ -10,12 +10,12 @@ import numpy as np
 import pytest
 from bluesky.run_engine import RunEngine
 from ophyd_async.core import (
+    DetectorTrigger,
     PathProvider,
     StaticFilenameProvider,
     StaticPathProvider,
-    init_devices,
     TriggerInfo,
-    DetectorTrigger,
+    init_devices,
 )
 from ophyd_async.epics.adcore import ADBaseDatasetDescriber, ADImageMode
 from ophyd_async.testing import (
@@ -23,21 +23,27 @@ from ophyd_async.testing import (
 )
 
 from cditools.eiger_async import (
-    EigerDataSource,
-    EigerDriverIO,
-    EigerHDF5Format,
-    EigerWriter,
-    EigerDetector,
     EigerController,
+    EigerDataSource,
+    EigerDetector,
+    EigerDriverIO,
+    EigerFileIO,
+    EigerHDF5Format,
     EigerTriggerMode,
+    EigerWriter,
 )
 
 
 @pytest.fixture
 def mock_eiger_detector(RE: RunEngine) -> EigerDetector:
-    path_provider = StaticPathProvider(StaticFilenameProvider("test_eiger"))
+    path_provider = StaticPathProvider(
+        StaticFilenameProvider("test_eiger"), directory_path="/tmp/test_data"
+    )
     with init_devices(mock=True):
         detector = EigerDetector("MOCK:EIGER:", path_provider, name="test_eiger")
+    set_mock_value(detector.driver.array_size_x, 2048)
+    set_mock_value(detector.driver.array_size_y, 2048)
+    set_mock_value(detector.driver.data_type, "UInt16")
     return detector
 
 
@@ -45,7 +51,7 @@ def mock_eiger_detector(RE: RunEngine) -> EigerDetector:
 def mock_eiger_driver(RE: RunEngine) -> EigerDriverIO:
     """Create a mock EigerDriverIO for testing."""
     with init_devices(mock=True):
-        driver = EigerDriverIO("MOCK:EIGER:CAM:")
+        driver = EigerDriverIO("MOCK:EIGER:cam1:")
 
     # Set up some default mock values
     set_mock_value(driver.array_size_x, 2048)
@@ -53,6 +59,14 @@ def mock_eiger_driver(RE: RunEngine) -> EigerDriverIO:
     set_mock_value(driver.data_type, "UInt16")
 
     return driver
+
+
+@pytest.fixture
+def mock_eiger_fileio(RE: RunEngine) -> EigerFileIO:
+    with init_devices(mock=True):
+        fileio = EigerFileIO("MOCK:EIGER:cam1:")
+
+    return fileio
 
 
 @pytest.fixture
@@ -65,11 +79,13 @@ def mock_path_provider() -> PathProvider:
 
 @pytest.fixture
 def eiger_writer(
-    mock_eiger_driver: EigerDriverIO, mock_path_provider: PathProvider
+    mock_eiger_driver: EigerDriverIO,
+    mock_eiger_fileio: EigerFileIO,
+    mock_path_provider: PathProvider,
 ) -> EigerWriter:
     """Create an EigerWriter instance for testing."""
     dataset_describer = ADBaseDatasetDescriber(mock_eiger_driver)
-    return EigerWriter(mock_eiger_driver, mock_path_provider, dataset_describer)
+    return EigerWriter(mock_eiger_fileio, mock_path_provider, dataset_describer)
 
 
 @pytest.fixture
@@ -80,11 +96,11 @@ def eiger_controller(mock_eiger_driver: EigerDriverIO) -> EigerController:
 @pytest.mark.asyncio
 async def test_eiger_writer_initialization(
     eiger_writer: EigerWriter,
-    mock_eiger_driver: EigerDriverIO,
+    mock_eiger_fileio: EigerFileIO,
     mock_path_provider: PathProvider,
 ):
     """Test that EigerWriter initializes correctly."""
-    assert eiger_writer._driver is mock_eiger_driver
+    assert eiger_writer.fileio is mock_eiger_fileio
     assert eiger_writer._path_provider is mock_path_provider
     assert eiger_writer._dataset_describer is not None
     assert eiger_writer._file_info is None
@@ -94,7 +110,9 @@ async def test_eiger_writer_initialization(
 
 @pytest.mark.asyncio
 async def test_eiger_writer_open(
-    eiger_writer: EigerWriter, mock_eiger_driver: EigerDriverIO
+    eiger_writer: EigerWriter,
+    mock_eiger_driver: EigerDriverIO,
+    mock_eiger_fileio: EigerFileIO,
 ) -> None:
     """Test the open method configures the detector correctly."""
     array_size_x, array_size_y, data_type = await asyncio.gather(
@@ -104,18 +122,15 @@ async def test_eiger_writer_open(
     )
 
     # Case 1: 1 image per file, 1 image, 1 trigger
-    set_mock_value(mock_eiger_driver.sequence_id, 1)
-    set_mock_value(mock_eiger_driver.fw_nimgs_per_file, 1)
+    set_mock_value(mock_eiger_fileio.sequence_id, 1)
+    set_mock_value(mock_eiger_fileio.fw_nimgs_per_file, 1)
     set_mock_value(mock_eiger_driver.num_images, 1)
     set_mock_value(mock_eiger_driver.num_triggers, 1)
 
     description = await eiger_writer.open(name="test_eiger", exposures_per_event=1)
-    assert await mock_eiger_driver.fw_enable.get_value() is True
-    assert await mock_eiger_driver.save_files.get_value() is True
-    assert await mock_eiger_driver.fw_hdf5_format.get_value() == EigerHDF5Format.LEGACY
-    assert (
-        await mock_eiger_driver.data_source.get_value() == EigerDataSource.FILE_WRITER
-    )
+    assert await mock_eiger_fileio.fw_enable.get_value() is True
+    assert await mock_eiger_fileio.save_files.get_value() is True
+    assert await mock_eiger_fileio.fw_hdf5_format.get_value() == EigerHDF5Format.LEGACY
     assert description.keys() == {
         "test_eiger_y_pixel_size",
         "test_eiger_x_pixel_size",
@@ -134,8 +149,8 @@ async def test_eiger_writer_open(
 
     # Case 2: 4 images per file, 11 images, 2 triggers
     # Expect 6 files, the first 5 will have 4 images, the last will have 2
-    set_mock_value(mock_eiger_driver.sequence_id, 2)
-    set_mock_value(mock_eiger_driver.fw_nimgs_per_file, 4)
+    set_mock_value(mock_eiger_fileio.sequence_id, 2)
+    set_mock_value(mock_eiger_fileio.fw_nimgs_per_file, 4)
     set_mock_value(mock_eiger_driver.num_images, 11)
     set_mock_value(mock_eiger_driver.num_triggers, 2)
     description = await eiger_writer.open(
@@ -153,101 +168,116 @@ async def test_eiger_writer_open(
         "test_eiger_count_time",
         "test_eiger_pixel_mask",
         "test_eiger_1",
-        "test_eiger_2",
-        "test_eiger_3",
-        "test_eiger_4",
-        "test_eiger_5",
-        "test_eiger_6",
     }
-
-    for i in range(1, 6):
-        data_key = description[f"test_eiger_{i}"]
-        assert tuple(data_key["shape"]) == (4, array_size_x, array_size_y)
-        assert data_key["dtype"] == "array"
-        assert data_key["dtype_numpy"] == np.dtype(data_type.lower()).str
-        assert data_key["external"] == "STREAM:"
-        assert data_key["source"] == "/tmp/test_data/test_eiger_2_master.h5"
-    data_key = description["test_eiger_6"]
-    assert tuple(data_key["shape"]) == (2, array_size_x, array_size_y)
+    data_key = description["test_eiger_1"]
+    assert tuple(data_key["shape"]) == (11, array_size_x, array_size_y)
     assert data_key["dtype"] == "array"
     assert data_key["dtype_numpy"] == np.dtype(data_type.lower()).str
     assert data_key["external"] == "STREAM:"
     assert data_key["source"] == "/tmp/test_data/test_eiger_2_master.h5"
 
+    #     # TODO: Add back when nimages_per_file is no longer hardcoded
+    #     "test_eiger_2",
+    #     "test_eiger_3",
+    #     "test_eiger_4",
+    #     "test_eiger_5",
+    #     "test_eiger_6",
+    # }
+
+    # for i in range(1, 6):
+    #     data_key = description[f"test_eiger_{i}"]
+    #     assert tuple(data_key["shape"]) == (4, array_size_x, array_size_y)
+    #     assert data_key["dtype"] == "array"
+    #     assert data_key["dtype_numpy"] == np.dtype(data_type.lower()).str
+    #     assert data_key["external"] == "STREAM:"
+    #     assert data_key["source"] == "/tmp/test_data/test_eiger_2_master.h5"
+    # data_key = description["test_eiger_6"]
+    # assert tuple(data_key["shape"]) == (2, array_size_x, array_size_y)
+    # assert data_key["dtype"] == "array"
+    # assert data_key["dtype_numpy"] == np.dtype(data_type.lower()).str
+    # assert data_key["external"] == "STREAM:"
+    # assert data_key["source"] == "/tmp/test_data/test_eiger_2_master.h5"
+
 
 @pytest.mark.asyncio
-async def test_eiger_writer_get_indices_written(eiger_writer, mock_eiger_driver):
+async def test_eiger_writer_get_indices_written(
+    eiger_writer: EigerWriter,
+    mock_eiger_driver: EigerDriverIO,
+    mock_eiger_fileio: EigerFileIO,
+):
     """Test getting the number of indices written."""
-    set_mock_value(mock_eiger_driver.sequence_id, 1)
-    set_mock_value(mock_eiger_driver.fw_nimgs_per_file, 1)
+    set_mock_value(mock_eiger_fileio.sequence_id, 1)
+    set_mock_value(mock_eiger_fileio.fw_nimgs_per_file, 1)
 
     # Case 1: 1 image, 1 trigger
     set_mock_value(mock_eiger_driver.num_triggers, 1)
     set_mock_value(mock_eiger_driver.num_images, 1)
-    set_mock_value(mock_eiger_driver.num_images_counter, 0)
+    set_mock_value(mock_eiger_fileio.num_captured, 0)
     await eiger_writer.open(
         name="test_eiger",
         exposures_per_event=await mock_eiger_driver.num_images.get_value(),
     )
     assert await eiger_writer.get_indices_written() == 0
-    set_mock_value(mock_eiger_driver.num_images_counter, 1)
+    set_mock_value(mock_eiger_fileio.num_captured, 1)
     assert await eiger_writer.get_indices_written() == 1
 
     # Case 2: 1 image, 5 triggers
     set_mock_value(mock_eiger_driver.num_triggers, 5)
     set_mock_value(mock_eiger_driver.num_images, 1)
-    set_mock_value(mock_eiger_driver.num_images_counter, 0)
+    set_mock_value(mock_eiger_fileio.num_captured, 0)
     await eiger_writer.open(
         name="test_eiger",
         exposures_per_event=await mock_eiger_driver.num_images.get_value(),
     )
     assert await eiger_writer.get_indices_written() == 0
-    set_mock_value(mock_eiger_driver.num_images_counter, 1)
+    set_mock_value(mock_eiger_fileio.num_captured, 1)
     assert await eiger_writer.get_indices_written() == 1
-    set_mock_value(mock_eiger_driver.num_images_counter, 3)
+    set_mock_value(mock_eiger_fileio.num_captured, 3)
     assert await eiger_writer.get_indices_written() == 3
-    set_mock_value(mock_eiger_driver.num_images_counter, 5)
+    set_mock_value(mock_eiger_fileio.num_captured, 5)
     assert await eiger_writer.get_indices_written() == 5
 
     # Case 3: 5 images, 2 triggers
     set_mock_value(mock_eiger_driver.num_triggers, 2)
     set_mock_value(mock_eiger_driver.num_images, 5)
-    set_mock_value(mock_eiger_driver.num_images_counter, 0)
+    set_mock_value(mock_eiger_fileio.num_captured, 0)
     await eiger_writer.open(
         name="test_eiger",
         exposures_per_event=await mock_eiger_driver.num_images.get_value(),
     )
     assert await eiger_writer.get_indices_written() == 0
-    set_mock_value(mock_eiger_driver.num_images_counter, 4)
+    set_mock_value(mock_eiger_fileio.num_captured, 4)
     assert await eiger_writer.get_indices_written() == 0
-    set_mock_value(mock_eiger_driver.num_images_counter, 5)
+    set_mock_value(mock_eiger_fileio.num_captured, 5)
     assert await eiger_writer.get_indices_written() == 1
-    set_mock_value(mock_eiger_driver.num_images_counter, 9)
+    set_mock_value(mock_eiger_fileio.num_captured, 9)
     assert await eiger_writer.get_indices_written() == 1
-    set_mock_value(mock_eiger_driver.num_images_counter, 10)
+    set_mock_value(mock_eiger_fileio.num_captured, 10)
     assert await eiger_writer.get_indices_written() == 2
 
 
 @pytest.mark.asyncio
 async def test_eiger_writer_observe_indices_written(
-    eiger_writer: EigerWriter, mock_eiger_driver: EigerDriverIO
+    eiger_writer: EigerWriter,
+    mock_eiger_driver: EigerDriverIO,
+    mock_eiger_fileio: EigerFileIO,
 ) -> None:
     """Test observing indices as they are written."""
-    set_mock_value(mock_eiger_driver.sequence_id, 1)
-    set_mock_value(mock_eiger_driver.fw_nimgs_per_file, 1)
+    set_mock_value(mock_eiger_fileio.sequence_id, 1)
+    set_mock_value(mock_eiger_fileio.fw_nimgs_per_file, 1)
 
     async def _simulate_writing_indices(
         num_images: int, num_triggers: int, acquire_time: float = 0.01
     ) -> list[int]:
         # Create an async generator to track yielded indices
         observed_indices = []
-        set_mock_value(mock_eiger_driver.num_images_counter, 0)
+        set_mock_value(mock_eiger_fileio.num_captured, 0)
 
         async def _simulate_acquisition():
             """Simulate the detector writing images by incrementing sequence_id."""
             for i in range(1, num_images * num_triggers + 1):
                 await asyncio.sleep(acquire_time)
-                set_mock_value(mock_eiger_driver.num_images_counter, i)
+                set_mock_value(mock_eiger_fileio.num_captured, i)
 
         async def _complete():
             """Helper function to collect observed indices."""
@@ -304,7 +334,9 @@ async def test_eiger_writer_observe_indices_written(
 
 @pytest.mark.asyncio
 async def test_eiger_writer_collect_stream_docs(
-    eiger_writer: EigerWriter, mock_eiger_driver: EigerDriverIO
+    eiger_writer: EigerWriter,
+    mock_eiger_driver: EigerDriverIO,
+    mock_eiger_fileio: EigerFileIO,
 ) -> None:
     """Test collecting stream documents."""
 
@@ -313,8 +345,7 @@ async def test_eiger_writer_collect_stream_docs(
         data_docs = []
         for i in range(1, num_triggers + 1):
             async for doc_type, doc in eiger_writer.collect_stream_docs(
-                _name="",
-                indices_written=i
+                _name="", indices_written=i
             ):
                 if doc_type == "stream_resource":
                     resource_docs.append(doc)
@@ -322,8 +353,8 @@ async def test_eiger_writer_collect_stream_docs(
                     data_docs.append(doc)
         return resource_docs, data_docs
 
-    set_mock_value(mock_eiger_driver.sequence_id, 1)
-    set_mock_value(mock_eiger_driver.fw_nimgs_per_file, 1)
+    set_mock_value(mock_eiger_fileio.sequence_id, 1)
+    set_mock_value(mock_eiger_fileio.fw_nimgs_per_file, 1)
     set_mock_value(mock_eiger_driver.num_images, 1)
     set_mock_value(mock_eiger_driver.num_triggers, 1)
     await eiger_writer.open(name="test_eiger", exposures_per_event=1)
@@ -340,13 +371,13 @@ async def test_eiger_writer_collect_stream_docs(
     await eiger_writer.close()
 
     set_mock_value(mock_eiger_driver.num_triggers, 3)
-    set_mock_value(mock_eiger_driver.sequence_id, 2)
+    set_mock_value(mock_eiger_fileio.sequence_id, 2)
     await eiger_writer.open(name="test_eiger", exposures_per_event=1)
     resource_docs, data_docs = await collect_docs(
         num_triggers=await mock_eiger_driver.num_triggers.get_value()
     )
-    assert len(resource_docs) == 12
-    assert len(data_docs) == 36
+    assert len(resource_docs) == 10
+    assert len(data_docs) == 30
     assert (
         resource_docs[0]["uri"]
         == "file://localhost/tmp/test_data/test_eiger_2_master.h5"
@@ -355,26 +386,29 @@ async def test_eiger_writer_collect_stream_docs(
 
 @pytest.mark.asyncio
 async def test_eiger_writer_close(
-    eiger_writer: EigerWriter, mock_eiger_driver: EigerDriverIO
+    eiger_writer: EigerWriter,
+    mock_eiger_driver: EigerDriverIO,
+    mock_eiger_fileio: EigerFileIO,
 ) -> None:
     """Test closing the writer."""
 
     # Verify the writing was enabled
-    set_mock_value(mock_eiger_driver.sequence_id, 1)
+    set_mock_value(mock_eiger_fileio.sequence_id, 1)
     set_mock_value(mock_eiger_driver.num_images, 1)
     set_mock_value(mock_eiger_driver.num_triggers, 1)
-    set_mock_value(mock_eiger_driver.fw_nimgs_per_file, 1)
+    set_mock_value(mock_eiger_fileio.fw_nimgs_per_file, 1)
     await eiger_writer.open(name="test_eiger", exposures_per_event=1)
-    assert await mock_eiger_driver.fw_enable.get_value() is True
-    assert await mock_eiger_driver.save_files.get_value() is True
+    assert await mock_eiger_fileio.fw_enable.get_value() is True
+    assert await mock_eiger_fileio.save_files.get_value() is True
 
     # Verify the writing was disabled
     await eiger_writer.close()
-    assert await mock_eiger_driver.fw_enable.get_value() is False
-    assert await mock_eiger_driver.save_files.get_value() is False
+    assert await mock_eiger_fileio.fw_enable.get_value() is False
+    assert await mock_eiger_fileio.save_files.get_value() is False
     assert eiger_writer._composer is None
     assert eiger_writer._current_sequence_id is None
     assert eiger_writer._file_info is None
+    assert await mock_eiger_fileio.fw_nimgs_per_file.get_value() == 1
 
 
 # TODO: Test the controller's overridden methods and do an integration test with bluesky plans + tiled readback
@@ -390,7 +424,10 @@ async def test_eiger_controller_prepare(eiger_controller: EigerController) -> No
     )
     await eiger_controller.prepare(trigger_info)
     assert await eiger_controller.driver.acquire_time.get_value() == 0.01
-    assert await eiger_controller.driver.trigger_mode.get_value() == EigerTriggerMode.INTERNAL_SERIES
+    assert (
+        await eiger_controller.driver.trigger_mode.get_value()
+        == EigerTriggerMode.INTERNAL_SERIES
+    )
     assert await eiger_controller.driver.num_triggers.get_value() == 1
     assert await eiger_controller.driver.num_images.get_value() == 1
     assert await eiger_controller.driver.image_mode.get_value() == ADImageMode.MULTIPLE
@@ -405,11 +442,14 @@ async def test_eiger_controller_prepare(eiger_controller: EigerController) -> No
     )
     await eiger_controller.prepare(trigger_info)
     assert await eiger_controller.driver.acquire_time.get_value() == 0.0
-    assert await eiger_controller.driver.trigger_mode.get_value() == EigerTriggerMode.EXTERNAL_SERIES
+    assert (
+        await eiger_controller.driver.trigger_mode.get_value()
+        == EigerTriggerMode.EXTERNAL_SERIES
+    )
     assert await eiger_controller.driver.num_triggers.get_value() == 10
     assert await eiger_controller.driver.num_images.get_value() == 5
     assert await eiger_controller.driver.image_mode.get_value() == ADImageMode.MULTIPLE
-    
+
     trigger_info = TriggerInfo(
         number_of_events=0,
         livetime=None,
@@ -420,8 +460,56 @@ async def test_eiger_controller_prepare(eiger_controller: EigerController) -> No
     )
     await eiger_controller.prepare(trigger_info)
     assert await eiger_controller.driver.acquire_time.get_value() == 0.0
-    assert await eiger_controller.driver.trigger_mode.get_value() == EigerTriggerMode.EXTERNAL_GATE
+    assert (
+        await eiger_controller.driver.trigger_mode.get_value()
+        == EigerTriggerMode.EXTERNAL_GATE
+    )
     assert await eiger_controller.driver.num_triggers.get_value() == 0
     assert await eiger_controller.driver.num_images.get_value() == 1
-    assert await eiger_controller.driver.image_mode.get_value() == ADImageMode.CONTINUOUS
+    assert (
+        await eiger_controller.driver.image_mode.get_value() == ADImageMode.CONTINUOUS
+    )
 
+
+@pytest.mark.asyncio
+async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
+    set_mock_value(mock_eiger_detector.driver.num_images, 1)
+    set_mock_value(mock_eiger_detector.driver.num_triggers, 2)
+    set_mock_value(mock_eiger_detector.driver.acquire_period, 0.01)
+
+    async def _simulate_one_trigger(num_captured: int):
+        await asyncio.sleep(await mock_eiger_detector.driver.acquire_period.get_value())
+        set_mock_value(mock_eiger_detector.fileio.num_captured, num_captured)
+
+    # Standalone methods
+    await mock_eiger_detector.describe()
+
+    # Case 1 - Step Scan: stage, trigger, read, trigger, read, unstage
+    await mock_eiger_detector.stage()
+    assert (
+        await mock_eiger_detector.driver.data_source.get_value()
+        == EigerDataSource.FILE_WRITER
+    )
+    status = mock_eiger_detector.trigger()
+    await _simulate_one_trigger(1)
+    await status
+    await mock_eiger_detector.read()
+    status = mock_eiger_detector.trigger()
+    await _simulate_one_trigger(2)
+    await status
+    await mock_eiger_detector.read()
+    await mock_eiger_detector.unstage()
+
+    # Case 2 - Fly Scan: prepare, kickoff, complete
+    await mock_eiger_detector.prepare(
+        TriggerInfo(
+            number_of_events=1,
+            livetime=0.01,
+            deadtime=0.001,
+            trigger=DetectorTrigger.INTERNAL,
+            exposure_timeout=1.0,
+            exposures_per_event=1,
+        )
+    )
+    await mock_eiger_detector.kickoff()
+    await mock_eiger_detector.complete()

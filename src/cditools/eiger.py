@@ -127,6 +127,7 @@ class EigerBase(EigerDetector):
         EigerFileHandler,
         "cam1:",
         name="file_handler",
+        # TODO: These paths need to be changed once the detector is deployed at CDI.
         write_path_template="/nsls2/data/tst/legacy/mock-proposals/2025-2/pass-56789/assets/eiger/%Y/%m/%d",
         root="/nsls2/data/tst/legacy/mock-proposals/2025-2/pass-56789/assets/eiger",
     )

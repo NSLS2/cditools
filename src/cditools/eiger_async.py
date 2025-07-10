@@ -11,9 +11,9 @@ from pathlib import Path
 from typing import Annotated as A
 from typing import Any, cast
 
-import numpy as np
+import numpy as np  # type: ignore[import-not-found]
 from bluesky.protocols import StreamAsset
-from event_model import DataKey
+from event_model import DataKey  # type: ignore[import-untyped]
 from ophyd_async.core import (
     AsyncStatus,
     DatasetDescriber,
@@ -455,7 +455,11 @@ class EigerWriter(ADWriter[EigerFileIO]):
     @property
     def _master_file_path(self) -> Path | None:
         if self._current_sequence_id is None or self._file_info is None:
-            logger.warning("No master file path found for sequence id %s and file info %s", self._current_sequence_id, self._file_info)
+            logger.warning(
+                "No master file path found for sequence id %s and file info %s",
+                self._current_sequence_id,
+                self._file_info,
+            )
             return None
         return (
             self._file_info.directory_path
@@ -467,7 +471,6 @@ class EigerWriter(ADWriter[EigerFileIO]):
     ) -> AsyncIterator[StreamAsset]:
         """Generate stream documents for the written HDF5 files."""
         if indices_written:
-            print(f"{indices_written=}")
             if not self._composer:
                 self._composer = HDFDocumentComposer(
                     self._master_file_path,

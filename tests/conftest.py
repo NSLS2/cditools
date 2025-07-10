@@ -5,12 +5,11 @@ import contextlib
 import pprint
 from collections.abc import Generator
 
+import pytest
+from bluesky.run_engine import RunEngine, TransitionError
 from tiled.client import from_uri
 from tiled.client.container import Container
 from tiled.server.simple import SimpleTiledServer
-
-import pytest
-from bluesky.run_engine import RunEngine, TransitionError
 
 _ALLOWED_PYTEST_TASKS = {"async_finalizer", "async_setup", "async_teardown"}
 
@@ -83,7 +82,10 @@ def RE(request: pytest.FixtureRequest):
 
     yield RE
     clean_event_loop()
+
+
 # ==================================================================================
+
 
 @pytest.fixture
 def tiled_client() -> Generator[Container, None, None]:
@@ -91,4 +93,3 @@ def tiled_client() -> Generator[Container, None, None]:
     client: Container = from_uri(server.uri)
     yield client
     server.close()
-

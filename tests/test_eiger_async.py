@@ -5,16 +5,16 @@ Tests for the EigerWriter class using ophyd-async mocking utilities.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
-import os
 import shutil
+from collections.abc import Sequence
+from pathlib import Path
 
+import bluesky.plan_stubs as bps
 import h5py
 import numpy as np
 import pytest
-from bluesky.run_engine import RunEngine
 from bluesky.callbacks.tiled_writer import TiledWriter
-import bluesky.plan_stubs as bps
+from bluesky.run_engine import RunEngine
 from bluesky.utils import MsgGenerator
 from ophyd_async.core import (
     DetectorTrigger,
@@ -28,8 +28,6 @@ from ophyd_async.epics.adcore import ADBaseDatasetDescriber, ADImageMode
 from ophyd_async.testing import (
     set_mock_value,
 )
-
-from tiled.server.simple import SimpleTiledServer
 from tiled.client.container import Container
 
 from cditools.eiger_async import (
@@ -44,24 +42,60 @@ from cditools.eiger_async import (
 )
 
 
-def write_eiger_hdf5_file(num_triggers: int, num_images: int, sequence_id: int, name: str = "test_eiger"):
-    if not os.path.exists(f"/tmp/test_data/"):
-        os.makedirs(f"/tmp/test_data/")
+def write_eiger_hdf5_file(
+    num_triggers: int, num_images: int, sequence_id: int, name: str = "test_eiger"
+):
+    data_path = Path("/tmp/test_data/")
+    if not data_path.exists():
+        data_path.mkdir(parents=True)
 
     with h5py.File(f"/tmp/test_data/{name}_{sequence_id}_data_000001.h5", "w") as f:
-        f.create_dataset("data_000001", data=np.zeros((num_triggers * num_images, 2048, 2048), dtype=np.uint16))
+        f.create_dataset(
+            "data_000001",
+            data=np.zeros((num_triggers * num_images, 2048, 2048), dtype=np.uint16),
+        )
 
     with h5py.File(f"/tmp/test_data/{name}_{sequence_id}_master.h5", "w") as f:
-        f["entry/data/data_000001"] = h5py.ExternalLink(f"/tmp/test_data/{name}_{sequence_id}_data_000001.h5", "data_000001")
-        f.create_dataset("entry/instrument/detector/y_pixel_size", data=np.ones((num_images,), dtype=np.uint8))
-        f.create_dataset("entry/instrument/detector/x_pixel_size", data=np.ones((num_images,), dtype=np.uint8))
-        f.create_dataset("entry/instrument/detector/distance", data=np.ones((num_images,), dtype=np.float32))
-        f.create_dataset("entry/instrument/detector/incident_wavelength", data=np.ones((num_images,), dtype=np.float32))
-        f.create_dataset("entry/instrument/detector/frame_time", data=np.ones((num_images,), dtype=np.float32))
-        f.create_dataset("entry/instrument/detector/beam_center_x", data=np.ones((num_images,), dtype=np.uint8))
-        f.create_dataset("entry/instrument/detector/beam_center_y", data=np.ones((num_images,), dtype=np.uint8))
-        f.create_dataset("entry/instrument/detector/count_time", data=np.ones((num_images,), dtype=np.float32))
-        f.create_dataset("entry/instrument/detector/pixel_mask", data=np.zeros((num_images, 2048, 2048), dtype=np.uint8))
+        f["entry/data/data_000001"] = h5py.ExternalLink(
+            f"/tmp/test_data/{name}_{sequence_id}_data_000001.h5", "data_000001"
+        )
+        f.create_dataset(
+            "entry/instrument/detector/y_pixel_size",
+            data=np.ones((num_images,), dtype=np.uint8),
+        )
+        f.create_dataset(
+            "entry/instrument/detector/x_pixel_size",
+            data=np.ones((num_images,), dtype=np.uint8),
+        )
+        f.create_dataset(
+            "entry/instrument/detector/distance",
+            data=np.ones((num_images,), dtype=np.float32),
+        )
+        f.create_dataset(
+            "entry/instrument/detector/incident_wavelength",
+            data=np.ones((num_images,), dtype=np.float32),
+        )
+        f.create_dataset(
+            "entry/instrument/detector/frame_time",
+            data=np.ones((num_images,), dtype=np.float32),
+        )
+        f.create_dataset(
+            "entry/instrument/detector/beam_center_x",
+            data=np.ones((num_images,), dtype=np.uint8),
+        )
+        f.create_dataset(
+            "entry/instrument/detector/beam_center_y",
+            data=np.ones((num_images,), dtype=np.uint8),
+        )
+        f.create_dataset(
+            "entry/instrument/detector/count_time",
+            data=np.ones((num_images,), dtype=np.float32),
+        )
+        f.create_dataset(
+            "entry/instrument/detector/pixel_mask",
+            data=np.zeros((num_images, 2048, 2048), dtype=np.uint8),
+        )
+
 
 @pytest.fixture
 def mock_eiger_detector(RE: RunEngine) -> EigerDetector:
@@ -76,8 +110,9 @@ def mock_eiger_detector(RE: RunEngine) -> EigerDetector:
 
     yield detector
 
-    if os.path.exists("/tmp/test_data"):
-        shutil.rmtree("/tmp/test_data")
+    data_path = Path("/tmp/test_data/")
+    if data_path.exists():
+        shutil.rmtree(data_path)
 
 
 @pytest.fixture
@@ -97,9 +132,7 @@ def mock_eiger_driver(RE: RunEngine) -> EigerDriverIO:
 @pytest.fixture
 def mock_eiger_fileio(RE: RunEngine) -> EigerFileIO:
     with init_devices(mock=True):
-        fileio = EigerFileIO("MOCK:EIGER:cam1:")
-
-    return fileio
+        return EigerFileIO("MOCK:EIGER:cam1:")
 
 
 @pytest.fixture
@@ -549,10 +582,17 @@ async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
 
 
 @pytest.mark.asyncio
-async def test_eiger_detector_with_RE(RE: RunEngine, tiled_client: Container, mock_eiger_detector: EigerDetector) -> None:
+async def test_eiger_detector_with_RE(
+    RE: RunEngine, tiled_client: Container, mock_eiger_detector: EigerDetector
+) -> None:
     acquire_period = 0.01
 
-    def _count_plan(dets: Sequence[EigerDetector], num: int = 1, num_images: int = 1, sequence_id: int = 1) -> MsgGenerator[str]:
+    def _count_plan(
+        dets: Sequence[EigerDetector],
+        num: int = 1,
+        num_images: int = 1,
+        sequence_id: int = 1,
+    ) -> MsgGenerator[str]:
         yield from bps.stage_all(*dets)
 
         for det in dets:
@@ -564,13 +604,18 @@ async def test_eiger_detector_with_RE(RE: RunEngine, tiled_client: Container, mo
             read_values = {}
             for det in dets:
                 read_values[det] = yield from bps.rd(det.fileio.num_captured)
-            
+
             for det in dets:
                 yield from bps.trigger(det, wait=False, group="wait_for_trigger")
 
             yield from bps.sleep(acquire_period)
 
-            write_eiger_hdf5_file(num_triggers=1, num_images=num_images, sequence_id=sequence_id, name="test_eiger")
+            write_eiger_hdf5_file(
+                num_triggers=1,
+                num_images=num_images,
+                sequence_id=sequence_id,
+                name="test_eiger",
+            )
 
             for det in dets:
                 num_images = yield from bps.rd(det.driver.num_images)
@@ -595,48 +640,188 @@ async def test_eiger_detector_with_RE(RE: RunEngine, tiled_client: Container, mo
     set_mock_value(mock_eiger_detector.driver.num_triggers, 1)
     uid = RE(_count_plan([mock_eiger_detector]))
     assert uid is not None
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_1"].shape == (1, 2048, 2048)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_1"].dtype == np.uint16
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_x_pixel_size"].shape == (1,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_x_pixel_size"].dtype == np.uint8
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_y_pixel_size"].shape == (1,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_y_pixel_size"].dtype == np.uint8
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_detector_distance"].shape == (1,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_detector_distance"].dtype == np.float32
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_incident_wavelength"].shape == (1,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_incident_wavelength"].dtype == np.float32
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_frame_time"].shape == (1,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_frame_time"].dtype == np.float32
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_beam_center_x"].shape == (1,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_beam_center_x"].dtype == np.uint8
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_beam_center_y"].shape == (1,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_beam_center_y"].dtype == np.uint8
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_count_time"].shape == (1,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_count_time"].dtype == np.float32
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_pixel_mask"].shape == (1, 2048, 2048)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_pixel_mask"].dtype == np.uint8
+    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_1"].shape == (
+        1,
+        2048,
+        2048,
+    )
+    assert (
+        tiled_client.values().last()["streams"]["primary"]["test_eiger_1"].dtype
+        == np.uint16
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_x_pixel_size"
+    ].shape == (1,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_x_pixel_size"]
+        .dtype
+        == np.uint8
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_y_pixel_size"
+    ].shape == (1,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_y_pixel_size"]
+        .dtype
+        == np.uint8
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_detector_distance"
+    ].shape == (1,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_detector_distance"]
+        .dtype
+        == np.float32
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_incident_wavelength"
+    ].shape == (1,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_incident_wavelength"]
+        .dtype
+        == np.float32
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_frame_time"
+    ].shape == (1,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_frame_time"]
+        .dtype
+        == np.float32
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_beam_center_x"
+    ].shape == (1,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_beam_center_x"]
+        .dtype
+        == np.uint8
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_beam_center_y"
+    ].shape == (1,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_beam_center_y"]
+        .dtype
+        == np.uint8
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_count_time"
+    ].shape == (1,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_count_time"]
+        .dtype
+        == np.float32
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_pixel_mask"
+    ].shape == (1, 2048, 2048)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_pixel_mask"]
+        .dtype
+        == np.uint8
+    )
 
     set_mock_value(mock_eiger_detector.fileio.sequence_id, 2)
     set_mock_value(mock_eiger_detector.driver.num_images, 1)
     uid = RE(_count_plan([mock_eiger_detector], num=10, num_images=1, sequence_id=2))
     assert uid is not None
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_1"].shape == (10, 2048, 2048)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_1"].dtype == np.uint16
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_x_pixel_size"].shape == (10,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_x_pixel_size"].dtype == np.uint8
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_y_pixel_size"].shape == (10,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_y_pixel_size"].dtype == np.uint8
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_detector_distance"].shape == (10,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_detector_distance"].dtype == np.float32
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_incident_wavelength"].shape == (10,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_incident_wavelength"].dtype == np.float32
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_frame_time"].shape == (10,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_frame_time"].dtype == np.float32
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_beam_center_x"].shape == (10,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_beam_center_x"].dtype == np.uint8
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_beam_center_y"].shape == (10,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_beam_center_y"].dtype == np.uint8
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_count_time"].shape == (10,)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_count_time"].dtype == np.float32
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_pixel_mask"].shape == (10, 2048, 2048)
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_pixel_mask"].dtype == np.uint8
+    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_1"].shape == (
+        10,
+        2048,
+        2048,
+    )
+    assert (
+        tiled_client.values().last()["streams"]["primary"]["test_eiger_1"].dtype
+        == np.uint16
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_x_pixel_size"
+    ].shape == (10,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_x_pixel_size"]
+        .dtype
+        == np.uint8
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_y_pixel_size"
+    ].shape == (10,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_y_pixel_size"]
+        .dtype
+        == np.uint8
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_detector_distance"
+    ].shape == (10,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_detector_distance"]
+        .dtype
+        == np.float32
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_incident_wavelength"
+    ].shape == (10,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_incident_wavelength"]
+        .dtype
+        == np.float32
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_frame_time"
+    ].shape == (10,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_frame_time"]
+        .dtype
+        == np.float32
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_beam_center_x"
+    ].shape == (10,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_beam_center_x"]
+        .dtype
+        == np.uint8
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_beam_center_y"
+    ].shape == (10,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_beam_center_y"]
+        .dtype
+        == np.uint8
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_count_time"
+    ].shape == (10,)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_count_time"]
+        .dtype
+        == np.float32
+    )
+    assert tiled_client.values().last()["streams"]["primary"][
+        "test_eiger_pixel_mask"
+    ].shape == (10, 2048, 2048)
+    assert (
+        tiled_client.values()
+        .last()["streams"]["primary"]["test_eiger_pixel_mask"]
+        .dtype
+        == np.uint8
+    )

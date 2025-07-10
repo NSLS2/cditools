@@ -467,6 +467,7 @@ class EigerWriter(ADWriter[EigerFileIO]):
     ) -> AsyncIterator[StreamAsset]:
         """Generate stream documents for the written HDF5 files."""
         if indices_written:
+            print(f"{indices_written=}")
             if not self._composer:
                 self._composer = HDFDocumentComposer(
                     self._master_file_path,

@@ -47,11 +47,11 @@ class EigerTriggerMode(StrictEnum):
     See https://areadetector.github.io/areaDetector/ADEiger/eiger.html#implementation-of-standard-driver-parameters
     """
 
-    INTERNAL_SERIES = "ints"
-    INTERNAL_ENABLE = "int"
-    EXTERNAL_SERIES = "exts"
-    EXTERNAL_ENABLE = "ext"
-    EXTERNAL_GATE = "gate"
+    INTERNAL_SERIES = "Internal Series"
+    INTERNAL_ENABLE = "Internal Enable"
+    EXTERNAL_SERIES = "External Series"
+    EXTERNAL_ENABLE = "External Enable"
+    CONTINUOUS = "Continuous"
 
 
 class EigerExtGateMode(StrictEnum):
@@ -70,7 +70,7 @@ class EigerROIMode(StrictEnum):
     See https://areadetector.github.io/areaDetector/ADEiger/eiger.html#readout-setup
     """
 
-    DISABLED = "Disabled"
+    DISABLED = "Disable"
     _4M = "4M"
 
 
@@ -80,10 +80,8 @@ class EigerCompressionAlgo(StrictEnum):
     See https://areadetector.github.io/areaDetector/ADEiger/eiger.html#readout-setup
     """
 
-    LZ4 = "lz4"
-    BSLZ4 = "bslz4"
-    NONE = "None"
-
+    LZ4 = "LZ4"
+    BSLZ4 = "BS LZ4"
 
 class EigerDataSource(StrictEnum):
     """Data sources for the Eiger detector.
@@ -170,7 +168,7 @@ class EigerDriverIO(ADBaseIO):
     link1: A[SignalR[str], PvSuffix("Link1_RBV")]
     link2: A[SignalR[str], PvSuffix("Link2_RBV")]
     link3: A[SignalR[str], PvSuffix("Link3_RBV")]
-    dcu_buffer_free: A[SignalR[int], PvSuffix("DCUBufferFree_RBV")]
+    dcu_buffer_free: A[SignalR[float], PvSuffix("DCUBufferFree_RBV")]
     hv_reset_time: A[SignalRW[float], PvSuffix.rbv("HVResetTime")]
     hv_reset: A[SignalRW[bool], PvSuffix("HVReset", "HVReset")]
     hv_state: A[SignalR[str], PvSuffix("HVState_RBV")]
@@ -217,7 +215,7 @@ class EigerDriverIO(ADBaseIO):
     ]
     stream_hdr_appendix: A[SignalRW[str], PvSuffix.rbv("StreamHdrAppendix")]
     stream_img_appendix: A[SignalRW[str], PvSuffix.rbv("StreamImgAppendix")]
-    stream_dropped: A[SignalR[float], PvSuffix("StreamDropped_RBV")]
+    stream_dropped: A[SignalR[int], PvSuffix("StreamDropped_RBV")]
 
     # Monitor Interface
     monitor_enable: A[SignalRW[bool], PvSuffix.rbv("MonitorEnable")]
@@ -260,7 +258,7 @@ class EigerFileIO(NDFileIO):
     save_files: A[SignalRW[bool], PvSuffix.rbv("SaveFiles")]
     file_owner: A[SignalRW[str], PvSuffix.rbv("FileOwner")]
     file_owner_grp: A[SignalRW[str], PvSuffix.rbv("FileOwnerGrp")]
-    file_perms: A[SignalRW[str], PvSuffix.rbv("FilePerms")]
+    file_perms: A[SignalRW[float], PvSuffix.rbv("FilePerms")]
     fw_free: A[SignalR[float], PvSuffix("FWFree_RBV")]
     fw_auto_remove: A[SignalRW[bool], PvSuffix.rbv("FWAutoRemove")]
     fw_clear: A[SignalRW[float], PvSuffix("FWClear")]
@@ -524,11 +522,6 @@ class EigerController(ADBaseController[EigerDriverIO]):
             await self.driver.trigger_mode.set(EigerTriggerMode.INTERNAL_SERIES)
         elif trigger_info.trigger == DetectorTrigger.EDGE_TRIGGER:
             await self.driver.trigger_mode.set(EigerTriggerMode.EXTERNAL_SERIES)
-        elif trigger_info.trigger in [
-            DetectorTrigger.VARIABLE_GATE,
-            DetectorTrigger.CONSTANT_GATE,
-        ]:
-            await self.driver.trigger_mode.set(EigerTriggerMode.EXTERNAL_GATE)
         else:
             msg = f"Trigger mode {trigger_info.trigger} not supported"
             raise NotImplementedError(msg)

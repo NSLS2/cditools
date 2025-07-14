@@ -8,7 +8,6 @@ import asyncio
 from collections.abc import AsyncIterator, Sequence
 from logging import getLogger
 from pathlib import Path
-from math import ceil
 from typing import Annotated as A
 from typing import Any, cast
 
@@ -45,7 +44,7 @@ logger = getLogger(__name__)
 
 # TODO: Port to ophyd-async (https://github.com/bluesky/ophyd-async/issues/961)
 # ==============================================================================
-class NDFileIO(NDArrayBaseIO):
+class NDFileIO(NDPluginBaseIO):
     file_path: A[SignalRW[str], PvSuffix.rbv("FilePath")]
     file_name: A[SignalRW[str], PvSuffix.rbv("FileName")]
     file_path_exists: A[SignalR[bool], PvSuffix("FilePathExists_RBV")]
@@ -304,29 +303,18 @@ class Eiger2FileIO(EigerFileIO):
     fw_nimgs_per_file: A[SignalRW[int], PvSuffix.rbv("FWNImgsPerFile")]
 
 
-class EigerDatasetDescriber(ADBaseDatasetDescriber):
-    """Dataset describer for the Eiger detector."""
-
-    def __init__(self, driver: EigerDriverIO) -> None:
-        super().__init__(driver)
-
-    async def num_triggers(self) -> int:
-        """Get the number of triggers."""
-        if not isinstance(self._driver, EigerDriverIO):
-            raise ValueError("Driver is not an Eiger driver")
-        return await self._driver.num_triggers.get_value()
-
-
 class EigerWriter(ADWriter[EigerFileIO]):
     """Eiger-specific file writer using the built-in FileWriter interface."""
 
     default_suffix: str = "cam1:"
+    # Forced minimum number of images per file to force a single HDF5 file
+    _min_num_images_per_file: int = 1_000_000_000
 
     def __init__(
         self,
         fileio: EigerFileIO,
         path_provider: PathProvider,
-        dataset_describer: EigerDatasetDescriber,
+        dataset_describer: ADBaseDatasetDescriber,
         plugins: dict[str, NDPluginBaseIO] | None = None,
     ):
         super().__init__(
@@ -341,24 +329,8 @@ class EigerWriter(ADWriter[EigerFileIO]):
         self._file_info: PathInfo | None = None
         self._datasets: list[HDFDatasetDescription] = []
         self._current_sequence_id: int | None = None
-        self._old_fwn_num_images_per_file: int | None = None
         self._composer: HDFDocumentComposer | None = None
 
-    @classmethod
-    def with_io(
-        cls: type[EigerWriter],
-        prefix: str,
-        path_provider: PathProvider,
-        dataset_source: NDArrayBaseIO | None = None,
-        fileio_suffix: str | None = None,
-        plugins: dict[str, NDPluginBaseIO] | None = None,
-    ) -> EigerWriter:
-        if not isinstance(dataset_source, EigerDriverIO):
-            raise ValueError("Dataset source must be an Eiger driver")
-
-        writer = super().with_io(prefix, path_provider, dataset_source, fileio_suffix, plugins)
-        writer._dataset_describer = EigerDatasetDescriber(dataset_source)
-        return writer
 
     async def open(self, name: str, exposures_per_event: int = 1) -> dict[str, DataKey]:
         """Setup file writing for acquisition."""
@@ -379,15 +351,14 @@ class EigerWriter(ADWriter[EigerFileIO]):
 
         if isinstance(self.fileio, Eiger2FileIO):
             await self.fileio.fw_hdf5_format.set(EigerHDF5Format.LEGACY)
-            num_images_per_file = await self.fileio.fw_nimgs_per_file.get_value()
-        else:
-            num_images_per_file = 1_000_000_000
+            # Force the number of images per file to a large number to simplify the logic
+            await self.fileio.fw_nimgs_per_file.set(self._min_num_images_per_file)
+            logger.warning(
+                "Setting fw_nimgs_per_file to %d to force writing to a single HDF5 file",
+                self._min_num_images_per_file,
+            )
 
-        if not isinstance(self._dataset_describer, EigerDatasetDescriber):
-            raise ValueError("Dataset describer is not an Eiger dataset describer")
-
-        num_triggers, detector_shape, np_dtype = await asyncio.gather(
-            self._dataset_describer.num_triggers(),
+        detector_shape, np_dtype = await asyncio.gather(
             self._dataset_describer.shape(),
             self._dataset_describer.np_datatype(),
         )
@@ -463,30 +434,14 @@ class EigerWriter(ADWriter[EigerFileIO]):
         # Cache for use later
         self._exposures_per_event = exposures_per_event
 
-        # Add the array datasets (linked from the master file)
-        # Linked keys are of the form
-        # - "/entry/data_000001"
-        # - "/entry/data_000002"
-        # - ...
-        # Example: if exposures_per_event (num_images) is 60, num_triggers is 2, and num_images_per_file is 100,
-        # then the data_000001 file will have 100 images and the data_000002 filewill have 20 images.
-        # Put simply, the last file could have less than num_images_per_file images.
-        total_images = num_triggers * exposures_per_event
         frame_datasets = [
             HDFDatasetDescription(
-                data_key=f"{name}_{i}",
-                dataset=f"/entry/data_{i:06d}",
-                shape=(
-                    min(
-                        num_images_per_file,
-                        total_images - (i - 1) * num_images_per_file,
-                    ),
-                    *detector_shape,
-                ),
+                data_key=f"{name}_image",
+                dataset=f"/entry/data_{1:06d}",
+                shape=(exposures_per_event, *detector_shape),     
                 dtype_numpy=np_dtype,
                 chunk_shape=(1, *detector_shape),
             )
-            for i in range(1, ceil(total_images / num_images_per_file) + 1)
         ]
 
         self._datasets = master_datasets + frame_datasets
@@ -527,6 +482,7 @@ class EigerWriter(ADWriter[EigerFileIO]):
     ) -> AsyncIterator[StreamAsset]:
         """Generate stream documents for the written HDF5 files."""
         if indices_written:
+            logger.warning(f"COLLECTING STREAM DOCS: {indices_written}")
             if not self._composer:
                 if self._master_file_path is None:
                     raise ValueError("Master file path is not set")
@@ -557,7 +513,6 @@ class EigerWriter(ADWriter[EigerFileIO]):
         self._composer = None
         self._file_info = None
         self._current_sequence_id = None
-        self._old_fwn_num_images_per_file = None
 
 
 class EigerController(ADBaseController[EigerDriverIO]):
@@ -592,18 +547,14 @@ class EigerController(ADBaseController[EigerDriverIO]):
             image_mode = ADImageMode.MULTIPLE
 
         if isinstance(trigger_info.number_of_events, list):
-            self._number_of_events_iter = iter(trigger_info.number_of_events)
+            logger.warning("Got a list for number of events, expected to be set up externally: %s", trigger_info.number_of_events)
         else:
-            self._number_of_events_iter = iter([trigger_info.number_of_events])
+            await self.driver.num_triggers.set(trigger_info.number_of_events)
 
         await asyncio.gather(
             self.driver.num_images.set(trigger_info.exposures_per_event),
             self.driver.image_mode.set(image_mode),
         )
-
-    async def arm(self) -> None:
-        await self.driver.num_triggers.set(next(self._number_of_events_iter))
-        await super().arm()
 
 
 class EigerDetector(AreaDetector[EigerController]):

@@ -446,7 +446,6 @@ class EigerWriter(ADWriter[EigerFileIO]):
 
         self._datasets = master_datasets + frame_datasets
 
-        logger.warning("OPENING FILE")
         if self._master_file_path is None:
             raise ValueError("Master file path is None")
 
@@ -501,7 +500,6 @@ class EigerWriter(ADWriter[EigerFileIO]):
     async def close(self) -> None:
         """Clean up file writing after acquisition and validate files exist."""
         # Disable file writer and reset number of images per file
-        logger.warning("CLOSING FILE")
         await asyncio.gather(
             self.fileio.fw_enable.set(False),
             self.fileio.save_files.set(False),

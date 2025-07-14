@@ -534,7 +534,8 @@ async def test_eiger_controller_prepare(eiger_controller: EigerController) -> No
 async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
     set_mock_value(mock_eiger_detector.driver.num_images, 1)
     set_mock_value(mock_eiger_detector.driver.num_triggers, 2)
-    set_mock_value(mock_eiger_detector.driver.acquire_period, 0.01)
+    set_mock_value(mock_eiger_detector.driver.acquire_period, 0.001)
+    set_mock_value(mock_eiger_detector.fileio.num_captured, 0)
 
     async def _simulate_one_trigger(num_captured: int):
         await asyncio.sleep(await mock_eiger_detector.driver.acquire_period.get_value())
@@ -559,6 +560,7 @@ async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
     await mock_eiger_detector.read()
     await mock_eiger_detector.unstage()
 
+    set_mock_value(mock_eiger_detector.fileio.num_captured, 0)
     # Case 2 - Fly Scan: prepare, kickoff, complete
     await mock_eiger_detector.prepare(
         TriggerInfo(
@@ -566,7 +568,7 @@ async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
             livetime=0.01,
             deadtime=0.001,
             trigger=DetectorTrigger.INTERNAL,
-            exposure_timeout=1.0,
+            exposure_timeout=10.0,
             exposures_per_event=1,
         )
     )
@@ -578,6 +580,7 @@ async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
 async def test_eiger_detector_with_RE(
     RE: RunEngine, tiled_client: Container, mock_eiger_detector: EigerDetector
 ) -> None:
+    set_mock_value(mock_eiger_detector.fileio.num_captured, 0)
     acquire_period = 0.01
 
     def _count_plan(

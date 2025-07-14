@@ -349,13 +349,14 @@ class EigerWriter(ADWriter[EigerFileIO]):
         cls: type[EigerWriter],
         prefix: str,
         path_provider: PathProvider,
-        dataset_source: EigerDriverIO | None = None,
+        dataset_source: NDArrayBaseIO | None = None,
         fileio_suffix: str | None = None,
+        plugins: dict[str, NDPluginBaseIO] | None = None,
     ) -> EigerWriter:
         if not isinstance(dataset_source, EigerDriverIO):
             raise ValueError("Dataset source must be an Eiger driver")
 
-        writer = super().with_io(prefix, path_provider, dataset_source, fileio_suffix)
+        writer = super().with_io(prefix, path_provider, dataset_source, fileio_suffix, plugins)
         writer._dataset_describer = EigerDatasetDescriber(dataset_source)
         return writer
 

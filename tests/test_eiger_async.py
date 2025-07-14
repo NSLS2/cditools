@@ -189,7 +189,6 @@ async def test_eiger_writer_open(
 
     # Case 1: 1 image per file, 1 image, 1 trigger
     set_mock_value(mock_eiger_fileio.sequence_id, 1)
-    set_mock_value(mock_eiger_fileio.fw_nimgs_per_file, 1)
     set_mock_value(mock_eiger_driver.num_images, 1)
     set_mock_value(mock_eiger_driver.num_triggers, 1)
 

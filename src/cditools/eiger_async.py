@@ -28,14 +28,13 @@ from ophyd_async.core import (
 )
 from ophyd_async.epics.adcore import (
     ADBaseController,
+    ADBaseDatasetDescriber,
     ADBaseIO,
+    ADFileWriteMode,
     ADImageMode,
     ADWriter,
     AreaDetector,
     NDPluginBaseIO,
-    NDArrayBaseIO,
-    ADFileWriteMode,
-    ADBaseDatasetDescriber
 )
 from ophyd_async.epics.signal import PvSuffix
 
@@ -59,7 +58,10 @@ class NDFileIO(NDPluginBaseIO):
     array_size0: A[SignalR[int], PvSuffix("ArraySize0")]
     array_size1: A[SignalR[int], PvSuffix("ArraySize1")]
     create_directory: A[SignalRW[int], PvSuffix("CreateDirectory")]
+
+
 # ==============================================================================
+
 
 class EigerTriggerMode(StrictEnum):
     """Trigger modes for the Eiger detector.
@@ -102,6 +104,7 @@ class EigerCompressionAlgo(StrictEnum):
 
     LZ4 = "LZ4"
     BSLZ4 = "BS LZ4"
+
 
 class EigerDataSource(StrictEnum):
     """Data sources for the Eiger detector.
@@ -331,7 +334,6 @@ class EigerWriter(ADWriter[EigerFileIO]):
         self._current_sequence_id: int | None = None
         self._composer: HDFDocumentComposer | None = None
 
-
     async def open(self, name: str, exposures_per_event: int = 1) -> dict[str, DataKey]:
         """Setup file writing for acquisition."""
         # Get file path info from path provider
@@ -438,7 +440,7 @@ class EigerWriter(ADWriter[EigerFileIO]):
             HDFDatasetDescription(
                 data_key=f"{name}_image",
                 dataset=f"/entry/data_{1:06d}",
-                shape=(exposures_per_event, *detector_shape),     
+                shape=(exposures_per_event, *detector_shape),
                 dtype_numpy=np_dtype,
                 chunk_shape=(1, *detector_shape),
             )
@@ -545,7 +547,10 @@ class EigerController(ADBaseController[EigerDriverIO]):
             image_mode = ADImageMode.MULTIPLE
 
         if isinstance(trigger_info.number_of_events, list):
-            logger.warning("Got a list for number of events, expected to be set up externally: %s", trigger_info.number_of_events)
+            logger.warning(
+                "Got a list for number of events, expected to be set up externally: %s",
+                trigger_info.number_of_events,
+            )
         else:
             await self.driver.num_triggers.set(trigger_info.number_of_events)
 

@@ -34,7 +34,7 @@ from ophyd_async.epics.adcore import (
     ADImageMode,
     ADWriter,
     AreaDetector,
-    NDPluginBaseIO,
+    NDArrayBaseIO,
 )
 from ophyd_async.epics.signal import PvSuffix
 
@@ -43,7 +43,7 @@ logger = getLogger(__name__)
 
 # TODO: Port to ophyd-async (https://github.com/bluesky/ophyd-async/issues/961)
 # ==============================================================================
-class NDFileIO(NDPluginBaseIO):
+class NDFileIO(NDArrayBaseIO):
     file_path: A[SignalRW[str], PvSuffix.rbv("FilePath")]
     file_name: A[SignalRW[str], PvSuffix.rbv("FileName")]
     file_path_exists: A[SignalR[bool], PvSuffix("FilePathExists_RBV")]
@@ -58,8 +58,6 @@ class NDFileIO(NDPluginBaseIO):
     array_size0: A[SignalR[int], PvSuffix("ArraySize0")]
     array_size1: A[SignalR[int], PvSuffix("ArraySize1")]
     create_directory: A[SignalRW[int], PvSuffix("CreateDirectory")]
-
-
 # ==============================================================================
 
 

@@ -35,6 +35,7 @@ from ophyd_async.epics.adcore import (
     ADWriter,
     AreaDetector,
     NDArrayBaseIO,
+    NDPluginBaseIO,
 )
 from ophyd_async.epics.signal import PvSuffix
 
@@ -295,15 +296,16 @@ class EigerFileIO(NDFileIO):
     fw_free: A[SignalR[float], PvSuffix("FWFree_RBV")]
     fw_auto_remove: A[SignalRW[bool], PvSuffix.rbv("FWAutoRemove")]
     fw_clear: A[SignalRW[float], PvSuffix("FWClear")]
+    fw_nimgs_per_file: A[SignalRW[int], PvSuffix.rbv("FWNImagesPerFile")]
 
 
 class Eiger2FileIO(EigerFileIO):
     """FileWriter interface for the Eiger2 detector."""
 
     fw_hdf5_format: A[SignalRW[EigerHDF5Format], PvSuffix.rbv("FWHDF5Format")]
-    fw_nimgs_per_file: A[SignalRW[int], PvSuffix.rbv("FWNImgsPerFile")]
 
 
+# TODO: DO NOT WAIT FOR NUM_CAPTURED SINCE IT DOES NOT GET UPDATED, USE NUM_IMAGES_COUNTER INSTEAD
 class EigerWriter(ADWriter[EigerFileIO]):
     """Eiger-specific file writer using the built-in FileWriter interface."""
 
@@ -344,6 +346,7 @@ class EigerWriter(ADWriter[EigerFileIO]):
         # Configure the Eiger FileWriter
         await asyncio.gather(
             self.fileio.file_path.set(self._file_info.directory_path.as_posix()),
+            self.fileio.create_directory.set(-3),
             self.fileio.fw_name_pattern.set(name_pattern),
             self.fileio.fw_enable.set(True),
             self.fileio.save_files.set(True),
@@ -351,12 +354,12 @@ class EigerWriter(ADWriter[EigerFileIO]):
 
         if isinstance(self.fileio, Eiger2FileIO):
             await self.fileio.fw_hdf5_format.set(EigerHDF5Format.LEGACY)
-            # Force the number of images per file to a large number to simplify the logic
-            await self.fileio.fw_nimgs_per_file.set(self._min_num_images_per_file)
-            logger.warning(
-                "Setting fw_nimgs_per_file to %d to force writing to a single HDF5 file",
-                self._min_num_images_per_file,
-            )
+        # Force the number of images per file to a large number to simplify the logic
+        await self.fileio.fw_nimgs_per_file.set(self._min_num_images_per_file)
+        logger.warning(
+            "Setting fw_nimgs_per_file to %d to force writing to a single HDF5 file",
+            self._min_num_images_per_file,
+        )
 
         detector_shape, np_dtype = await asyncio.gather(
             self._dataset_describer.shape(),

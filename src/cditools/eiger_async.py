@@ -334,7 +334,7 @@ class EigerWriter(ADWriter[EigerDriverIO]):
         """Setup file writing for acquisition."""
         # Get file path info from path provider
         self._file_info = self._path_provider()
-        self._current_sequence_id = await self.fileio.sequence_id.get_value()
+        self._current_sequence_id = await self.fileio.sequence_id.get_value() + 1
 
         # Set the name pattern with $id replacement similar to original
         name_pattern = f"{self._file_info.filename}_$id"

@@ -520,12 +520,8 @@ class EigerWriter(ADWriter[EigerDriverIO]):
 
     async def close(self) -> None:
         """Clean up file writing after acquisition and validate files exist."""
-        # Disable file writer and reset number of images per file
-        await asyncio.gather(
-            self.fileio.fw_enable.set(False),
-            self.fileio.save_files.set(False),
-        )
 
+        # Check that the master file was written
         if self._master_file_path is not None and not self._master_file_path.exists():
             logger.warning("Master file was not written: %s", self._master_file_path)
 

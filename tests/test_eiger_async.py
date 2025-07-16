@@ -44,6 +44,7 @@ from cditools.eiger_async import (
 def write_eiger_hdf5_file(
     num_triggers: int, num_images: int, sequence_id: int, name: str = "test_eiger"
 ):
+    sequence_id += 1
     with h5py.File(f"/tmp/test_data/{name}_{sequence_id}_data_000001.h5", "w") as f:
         f.create_dataset(
             "data_000001",
@@ -186,7 +187,7 @@ async def test_eiger_writer_open(
     )
 
     # Case 1: 1 image, 1 trigger
-    set_mock_value(mock_eiger_driver.sequence_id, 1)
+    set_mock_value(mock_eiger_driver.sequence_id, 0)
     set_mock_value(mock_eiger_driver.num_images, 1)
     set_mock_value(mock_eiger_driver.num_triggers, 1)
 
@@ -212,7 +213,7 @@ async def test_eiger_writer_open(
 
     # Case 2: 4 images per file, 11 images, 2 triggers
     # Expect 6 files, the first 5 will have 4 images, the last will have 2
-    set_mock_value(mock_eiger_driver.sequence_id, 2)
+    set_mock_value(mock_eiger_driver.sequence_id, 1)
     set_mock_value(mock_eiger_driver.num_images, 11)
     set_mock_value(mock_eiger_driver.num_triggers, 2)
     description = await eiger_writer.open(
@@ -390,7 +391,7 @@ async def test_eiger_writer_collect_stream_docs(
                     data_docs.append(doc)
         return resource_docs, data_docs
 
-    set_mock_value(mock_eiger_driver.sequence_id, 1)
+    set_mock_value(mock_eiger_driver.sequence_id, 0)
     set_mock_value(mock_eiger_driver.num_images, 1)
     set_mock_value(mock_eiger_driver.num_triggers, 1)
     await eiger_writer.open(name="test_eiger", exposures_per_event=1)
@@ -407,7 +408,7 @@ async def test_eiger_writer_collect_stream_docs(
     await eiger_writer.close()
 
     set_mock_value(mock_eiger_driver.num_triggers, 3)
-    set_mock_value(mock_eiger_driver.sequence_id, 2)
+    set_mock_value(mock_eiger_driver.sequence_id, 1)
     await eiger_writer.open(name="test_eiger", exposures_per_event=1)
     resource_docs, data_docs = await collect_docs(
         num_triggers=await mock_eiger_driver.num_triggers.get_value()
@@ -574,7 +575,7 @@ async def test_eiger_detector_with_RE(
     RE.subscribe(tiled_writer)
     callback_on_mock_put(mock_eiger_detector.driver.acquire, _write_file)
 
-    set_mock_value(mock_eiger_detector.fileio.sequence_id, 1)
+    set_mock_value(mock_eiger_detector.fileio.sequence_id, 0)
     set_mock_value(mock_eiger_detector.driver.num_images, 1)
     set_mock_value(mock_eiger_detector.fileio.array_counter, 0)
     set_mock_value(mock_eiger_detector.driver.acquire_period, 0.001)

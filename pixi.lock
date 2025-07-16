@@ -997,8 +997,8 @@ packages:
   requires_python: '>=3.8'
 - pypi: .
   name: cditools
-  version: 0.1.dev55+ge4c43d8.d20250715
-  sha256: a9151703cfcc98e3ec8b42f6f48a3d0b846f2cbe302adfad988cb1c3e94ab350
+  version: 0.1.dev63+gc62d9d2
+  sha256: 263040a2b9c717fae683c72a50ab6bc1b125d49e1b6d51cc5587063d9544f105
   requires_dist:
   - ophyd
   - ophyd-async>=0.10.0a4
@@ -1020,6 +1020,7 @@ packages:
   - ruff ; extra == 'dev'
   - aioca ; extra == 'dev'
   - tiled[minimal-client,server] ; extra == 'dev'
+  - pyright ; extra == 'dev'
   - sphinx>=7.0 ; extra == 'docs'
   - myst-parser>=0.13 ; extra == 'docs'
   - sphinx-copybutton ; extra == 'docs'

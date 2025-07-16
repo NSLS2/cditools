@@ -342,14 +342,23 @@ class EigerWriter(ADWriter[EigerDriverIO]):
         # Configure the Eiger FileWriter
         await asyncio.gather(
             self.fileio.file_path.set(self._file_info.directory_path.as_posix()),
-            self.fileio.create_directory.set(-3),
+            self.fileio.create_directory.set(self._file_info.create_dir_depth),
             self.fileio.fw_name_pattern.set(name_pattern),
             self.fileio.fw_enable.set(True),
             self.fileio.save_files.set(True),
+            self.fileio.data_source.set(EigerDataSource.FILE_WRITER),
+            self.fileio.num_capture.set(0),
+            # Use array_counter to track the total number of images written
+            self.fileio.array_counter.set(0),
         )
+
+        if not await self.fileio.file_path_exists.get_value():
+            msg = f"File path {self._file_info.directory_path} does not exist"
+            raise FileNotFoundError(msg)
 
         if isinstance(self.fileio, Eiger2DriverIO):
             await self.fileio.fw_hdf5_format.set(EigerHDF5Format.LEGACY)
+
         # Force the number of images per file to a large number to simplify the logic
         await self.fileio.fw_nimgs_per_file.set(self._min_num_images_per_file)
         logger.warning(
@@ -476,11 +485,10 @@ class EigerWriter(ADWriter[EigerDriverIO]):
         )
 
     async def collect_stream_docs(
-        self, _name: str, indices_written: int
+        self, name: str, indices_written: int
     ) -> AsyncIterator[StreamAsset]:
         """Generate stream documents for the written HDF5 files."""
         if indices_written:
-            logger.warning(f"COLLECTING STREAM DOCS: {indices_written}")
             if not self._composer:
                 if self._master_file_path is None:
                     raise ValueError("Master file path is not set")
@@ -500,13 +508,13 @@ class EigerWriter(ADWriter[EigerDriverIO]):
         self, timeout: float
     ) -> AsyncGenerator[int, None]:
         async for num_captured in observe_value(
-            self.fileio.num_images_counter, timeout
+            self.fileio.array_counter, timeout
         ):
             yield num_captured // self._exposures_per_event
 
     async def get_indices_written(self) -> int:
         return (
-            await self.fileio.num_images_counter.get_value()
+            await self.fileio.array_counter.get_value()
             // self._exposures_per_event
         )
 
@@ -612,19 +620,3 @@ class EigerDetector(AreaDetector[EigerController]):
             name=name,
             config_sigs=config_sigs,
         )
-
-        # TODO: Fix typing in base class
-        self.driver: EigerDriverIO = cast(EigerDriverIO, self.driver)
-
-    @AsyncStatus.wrap
-    async def stage(self) -> None:
-        """Prepare the eiger detector for acquisition.
-
-        If the writer is an EigerWriter, set the data source to FILE_WRITER.
-        Otherwise, set the data source to STREAM.
-        """
-        await super().stage()
-        if isinstance(self.fileio, EigerDriverIO):
-            await self.driver.data_source.set(EigerDataSource.FILE_WRITER)
-        else:
-            await self.driver.data_source.set(EigerDataSource.STREAM)

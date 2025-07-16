@@ -64,7 +64,7 @@ class CDIBlackHoleIOC(PVGroup):
         # Overwrite the pvdb with the blackhole, while keeping the explicit pv properties
         self.pvdb: dict[str, ChannelData] = self.pvdb
         self.old_pvdb = self.pvdb.copy()
-        self.pvdb = ReallyDefaultDict(self.fabricate_channel)
+        self.pvdb = ReallyDefaultDict(self.fabricate_channel)  # type: ignore[reportIncompatibleMethodOverride]
 
     def fabricate_channel(self, key: str) -> ChannelData:
         # If the channel already exists from initialization, return it

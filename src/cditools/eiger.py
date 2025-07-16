@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path, PurePath
-from typing import Any
+from typing import Any, cast
 
 from ophyd import Component as Cpt  # type: ignore[import-not-found]
 from ophyd import (
@@ -12,7 +12,6 @@ from ophyd import (
     ProcessPlugin,
     ROIPlugin,
     StatsPlugin,
-    StatusBase,
 )
 from ophyd.areadetector.base import (  # type: ignore[import-not-found]
     ADComponent,
@@ -23,6 +22,7 @@ from ophyd.areadetector.filestore_mixins import (  # type: ignore[import-not-fou
     new_short_uid,
 )
 from ophyd.areadetector.trigger_mixins import (  # type: ignore[import-not-found]
+    ADTriggerStatus,
     SingleTrigger,
 )
 
@@ -69,7 +69,7 @@ class EigerFileHandler(Device, FileStoreBase):
     def sequence_number(self) -> int:
         return self.sequence_id_offset + int(self.sequence_id.get())
 
-    def stage(self) -> list[object]:
+    def stage(self) -> list[object]:  # type: ignore[reportIncompatibleMethodOverride]
         res_uid = new_short_uid()
         write_path = Path(f"{datetime.now().strftime(self.write_path_template)}/")
         self.file_path.set(write_path.as_posix()).wait(1.0)
@@ -82,14 +82,14 @@ class EigerFileHandler(Device, FileStoreBase):
         #      * ...
         self.file_write_name_pattern.set(f"{res_uid}_$id").wait(1.0)
 
-        ret: list[object] = super().stage()
+        ret: list[object] = super().stage()  # type: ignore[reportIncompatibleMethodOverride]
 
         # Set the filename for the resource document.
         file_prefix = PurePath(self.file_path.get()) / res_uid
         self._fn = file_prefix
 
-        images_per_file = self.file_write_images_per_file.get()
-        resource_kwargs = {"images_per_file": images_per_file}
+        images_per_file: str = self.file_write_images_per_file.get()
+        resource_kwargs: dict[str, str] = {"images_per_file": images_per_file}
 
         self._generate_resource(resource_kwargs)
 
@@ -145,22 +145,23 @@ class EigerBase(EigerDetector):
     def stage(self, *args: Any, **kwargs: dict[str, Any]) -> list[object]:
         staged_devices: list[object] = super().stage(*args, **kwargs)
         self.cam.manual_trigger.set(True).wait(5.0)
-        file_write_path = self.file_handler.file_path.get()
+        file_write_path: Path = Path(cast(str, self.file_handler.file_path.get()))
         if not Path.exists(file_write_path):
             msg = f"Path {file_write_path} does not exist."
             raise FileNotFoundError(msg)
         return staged_devices
 
-    def unstage(self) -> None:
+    def unstage(self) -> list[object]:
         self.cam.manual_trigger.set(False).wait(5.0)
-        super().unstage()
+        ret = super().unstage()
 
-        if not all(Path.exists(path) for path in self.file_handler.master_file_paths):
+        if not all(Path(path).exists() for path in self.file_handler.master_file_paths):
             msg = f"Paths {self.file_handler.master_file_paths} were not written."
             raise FileNotFoundError(msg)
+        return ret
 
 
-class EigerSingleTrigger(SingleTrigger, EigerBase):
+class EigerSingleTrigger(SingleTrigger, EigerBase):  # type: ignore[reportIncompatibleMethodOverride]
     """Eiger detector that uses the single trigger acquisition mode."""
 
     def __init__(self, *args: Any, **kwargs: dict[str, Any]) -> None:
@@ -170,7 +171,7 @@ class EigerSingleTrigger(SingleTrigger, EigerBase):
         self.stage_sigs["file_handler.enable"] = True
         self.stage_sigs["file_handler.save_files"] = True
 
-    def trigger(self, *args: Any, **kwargs: dict[str, Any]) -> StatusBase:
+    def trigger(self, *args: Any, **kwargs: dict[str, Any]) -> ADTriggerStatus:
         status = super().trigger(*args, **kwargs)
         # If the manual trigger is enabled, we need to press the special trigger button
         # to actually trigger the detector.

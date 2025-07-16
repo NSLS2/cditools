@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Generator
 from subprocess import PIPE, Popen
 
 import pytest
@@ -34,7 +35,7 @@ from cditools.motors import (
 
 
 @pytest.fixture(scope="session")
-def black_hole_ioc():
+def black_hole_ioc() -> Generator[None, None, None]:
     os.environ["EPICS_CA_ADDR_LIST"] = "127.0.0.1"
     os.environ["EPICS_CA_AUTO_ADDR_LIST"] = "NO"
     p = Popen(["black-hole-ioc", "--interfaces", "127.0.0.1"], stdout=PIPE)
@@ -60,7 +61,7 @@ def black_hole_ioc():
     p.wait()
 
 
-def test_motors_can_connect(black_hole_ioc):
+def test_motors_can_connect(black_hole_ioc: None) -> None:
     slt_wb1 = SltWB1(prefix="XF:09IDA-OP:1{Slt:WB1", name="slt_wb1")
     slt_wb1.wait_for_connection(timeout=10.0)
 

@@ -9,13 +9,12 @@ from collections.abc import AsyncGenerator, AsyncIterator, Sequence
 from logging import getLogger
 from pathlib import Path
 from typing import Annotated as A
-from typing import Any, cast
+from typing import Any
 
 import numpy as np  # type: ignore[import-not-found]
 from bluesky.protocols import StreamAsset
 from event_model import DataKey  # type: ignore[import-untyped]
 from ophyd_async.core import (
-    AsyncStatus,
     DetectorTrigger,
     HDFDatasetDescription,
     HDFDocumentComposer,
@@ -60,8 +59,6 @@ class NDFileIO(NDArrayBaseIO):
     array_size0: A[SignalR[int], PvSuffix("ArraySize0")]
     array_size1: A[SignalR[int], PvSuffix("ArraySize1")]
     create_directory: A[SignalRW[int], PvSuffix("CreateDirectory")]
-
-
 # ==============================================================================
 
 
@@ -400,13 +397,6 @@ class EigerWriter(ADWriter[EigerDriverIO]):
             HDFDatasetDescription(
                 data_key=f"{name}_incident_wavelength",
                 dataset="entry/instrument/detector/incident_wavelength",
-                shape=(exposures_per_event,),
-                dtype_numpy=np.dtype(np.float32).str,
-                chunk_shape=(1,),
-            ),
-            HDFDatasetDescription(
-                data_key=f"{name}_frame_time",
-                dataset="entry/instrument/detector/frame_time",
                 shape=(exposures_per_event,),
                 dtype_numpy=np.dtype(np.float32).str,
                 chunk_shape=(1,),

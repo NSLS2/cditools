@@ -14,6 +14,7 @@ import bluesky.plans as bp
 import h5py
 import numpy as np
 import pytest
+from event_model import StreamDatum, StreamResource
 from bluesky.callbacks.tiled_writer import TiledWriter
 from bluesky.run_engine import RunEngine
 from ophyd_async.core import (
@@ -44,7 +45,6 @@ from cditools.eiger_async import (
 def write_eiger_hdf5_file(
     num_triggers: int, num_images: int, sequence_id: int, name: str = "test_eiger"
 ):
-    sequence_id += 1
     with h5py.File(f"/tmp/test_data/{name}_{sequence_id}_data_000001.h5", "w") as f:
         f.create_dataset(
             "data_000001",
@@ -170,8 +170,6 @@ async def test_eiger_writer_initialization(
     assert eiger_writer._path_provider is mock_path_provider
     assert eiger_writer._dataset_describer is not None
     assert eiger_writer._file_info is None
-    assert eiger_writer._current_sequence_id is None
-    assert eiger_writer._composer is None
 
 
 @pytest.mark.asyncio
@@ -208,7 +206,7 @@ async def test_eiger_writer_open(
     }
     assert (
         description["test_eiger_image"]["source"]
-        == "/tmp/test_data/test_eiger_1_master.h5"
+        == "ADEiger FileWriter"
     )
 
     # Case 2: 4 images per file, 11 images, 2 triggers
@@ -239,7 +237,7 @@ async def test_eiger_writer_open(
     assert data_key["dtype_numpy"] == np.dtype(data_type.lower()).str
     assert "external" in data_key
     assert data_key["external"] == "STREAM:"
-    assert data_key["source"] == "/tmp/test_data/test_eiger_2_master.h5"
+    assert data_key["source"] == "ADEiger FileWriter"
 
 
 @pytest.mark.asyncio
@@ -378,10 +376,12 @@ async def test_eiger_writer_collect_stream_docs(
 ) -> None:
     """Test collecting stream documents."""
 
-    async def collect_docs(num_triggers: int):
+    async def collect_docs(num_triggers: int) -> tuple[list[StreamResource], list[StreamDatum]]:
         resource_docs = []
         data_docs = []
         for i in range(1, num_triggers + 1):
+            sequence_id = await mock_eiger_driver.sequence_id.get_value()
+            set_mock_value(mock_eiger_driver.sequence_id, sequence_id + 1)
             async for doc_type, doc in eiger_writer.collect_stream_docs(
                 name="", indices_written=i
             ):
@@ -393,11 +393,8 @@ async def test_eiger_writer_collect_stream_docs(
 
     set_mock_value(mock_eiger_driver.sequence_id, 0)
     set_mock_value(mock_eiger_driver.num_images, 1)
-    set_mock_value(mock_eiger_driver.num_triggers, 1)
     await eiger_writer.open(name="test_eiger", exposures_per_event=1)
-    resource_docs, data_docs = await collect_docs(
-        num_triggers=await mock_eiger_driver.num_triggers.get_value()
-    )
+    resource_docs, data_docs = await collect_docs(num_triggers=1)
     assert len(resource_docs) == 10
     assert len(data_docs) == 10
     assert (
@@ -407,18 +404,27 @@ async def test_eiger_writer_collect_stream_docs(
 
     await eiger_writer.close()
 
-    set_mock_value(mock_eiger_driver.num_triggers, 3)
-    set_mock_value(mock_eiger_driver.sequence_id, 1)
     await eiger_writer.open(name="test_eiger", exposures_per_event=1)
-    resource_docs, data_docs = await collect_docs(
-        num_triggers=await mock_eiger_driver.num_triggers.get_value()
-    )
-    assert len(resource_docs) == 10
+    resource_docs, data_docs = await collect_docs(num_triggers=3)
+    assert len(resource_docs) == 30
     assert len(data_docs) == 30
-    assert (
-        resource_docs[0]["uri"]
-        == "file://localhost/tmp/test_data/test_eiger_2_master.h5"
-    )
+    # There are 10 different datasets inside a single master file
+    # 3 triggers, so 30 total resources/datasets
+    for i in range(10):
+        assert (
+            resource_docs[i]["uri"]
+            == "file://localhost/tmp/test_data/test_eiger_2_master.h5"
+        )
+    for i in range(10, 20):
+        assert (
+            resource_docs[10]["uri"]
+            == "file://localhost/tmp/test_data/test_eiger_3_master.h5"
+        )
+    for i in range(20, 30):
+        assert (
+            resource_docs[20]["uri"]
+            == "file://localhost/tmp/test_data/test_eiger_4_master.h5"
+        )
 
 
 @pytest.mark.asyncio
@@ -438,8 +444,6 @@ async def test_eiger_writer_close(
 
     # Verify the writing was disabled
     await eiger_writer.close()
-    assert eiger_writer._composer is None
-    assert eiger_writer._current_sequence_id is None
     assert eiger_writer._file_info is None
 
 
@@ -556,7 +560,8 @@ async def test_eiger_detector_with_RE(
     async def _write_file(value: bool, wait: bool) -> None:
         if value:
             num_images = await mock_eiger_detector.driver.num_images.get_value()
-            sequence_id = await mock_eiger_detector.fileio.sequence_id.get_value()
+            sequence_id = await mock_eiger_detector.fileio.sequence_id.get_value() + 1
+            set_mock_value(mock_eiger_detector.fileio.sequence_id, sequence_id)
             await asyncio.sleep(
                 await mock_eiger_detector.driver.acquire_period.get_value()
             )
@@ -577,7 +582,6 @@ async def test_eiger_detector_with_RE(
 
     set_mock_value(mock_eiger_detector.fileio.sequence_id, 0)
     set_mock_value(mock_eiger_detector.driver.num_images, 1)
-    set_mock_value(mock_eiger_detector.fileio.array_counter, 0)
     set_mock_value(mock_eiger_detector.driver.acquire_period, 0.001)
     uid = RE(bp.count([mock_eiger_detector]))
     assert uid is not None
@@ -676,7 +680,6 @@ async def test_eiger_detector_with_RE(
 
     set_mock_value(mock_eiger_detector.fileio.sequence_id, 2)
     set_mock_value(mock_eiger_detector.driver.num_images, 1)
-    set_mock_value(mock_eiger_detector.fileio.array_counter, 0)
     set_mock_value(mock_eiger_detector.driver.acquire_period, 0.001)
     uid = RE(bp.count([mock_eiger_detector], num=10))
     assert uid is not None

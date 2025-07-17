@@ -163,7 +163,6 @@ class EigerDriverIO(ADBaseIO, NDFileIO):
     num_exposures: A[SignalRW[int], PvSuffix.rbv("NumExposures")]
     acquire_time: A[SignalRW[float], PvSuffix.rbv("AcquireTime")]
     acquire_period: A[SignalRW[float], PvSuffix.rbv("AcquirePeriod")]
-    data_type: A[SignalRW[str], PvSuffix.rbv("DataType")]
     temperature_actual: A[SignalR[float], PvSuffix("TemperatureActual")]
     max_size_x: A[SignalR[int], PvSuffix("MaxSizeX_RBV")]
     max_size_y: A[SignalR[int], PvSuffix("MaxSizeY_RBV")]
@@ -327,14 +326,16 @@ class EigerWriter(ADWriter[EigerDriverIO]):
 
         self._file_info: PathInfo | None = None
         self._datasets: list[HDFDatasetDescription] = []
-        self._current_sequence_id: int | None = None
-        self._composer: HDFDocumentComposer | None = None
+        self._master_file_path_cache: list[Path] = []
 
     async def open(self, name: str, exposures_per_event: int = 1) -> dict[str, DataKey]:
         """Setup file writing for acquisition."""
         # Get file path info from path provider
         self._file_info = self._path_provider()
-        self._current_sequence_id = await self.fileio.sequence_id.get_value() + 1
+        self._master_file_path_cache.clear()
+
+        # Cache for use later
+        self._exposures_per_event = exposures_per_event
 
         # Set the name pattern with $id replacement similar to original
         name_pattern = f"{self._file_info.filename}_$id"
@@ -360,11 +361,13 @@ class EigerWriter(ADWriter[EigerDriverIO]):
             await self.fileio.fw_hdf5_format.set(EigerHDF5Format.LEGACY)
 
         # Force the number of images per file to a large number to simplify the logic
-        await self.fileio.fw_nimgs_per_file.set(self._min_num_images_per_file)
-        logger.warning(
-            "Setting fw_nimgs_per_file to %d to force writing to a single HDF5 file",
-            self._min_num_images_per_file,
-        )
+        num_images_per_file = await self.fileio.fw_nimgs_per_file.get_value()
+        if num_images_per_file < self._min_num_images_per_file:
+            await self.fileio.fw_nimgs_per_file.set(self._min_num_images_per_file)
+            logger.warning(
+                "Setting fw_nimgs_per_file to %d to force writing to a single HDF5 file",
+                self._min_num_images_per_file,
+            )
 
         detector_shape, np_dtype = await asyncio.gather(
             self._dataset_describer.shape(),
@@ -439,8 +442,6 @@ class EigerWriter(ADWriter[EigerDriverIO]):
             ),
         ]
 
-        # Cache for use later
-        self._exposures_per_event = exposures_per_event
 
         frame_datasets = [
             HDFDatasetDescription(
@@ -452,14 +453,12 @@ class EigerWriter(ADWriter[EigerDriverIO]):
             )
         ]
 
+        # Cache descriptions for later use
         self._datasets = master_datasets + frame_datasets
-
-        if self._master_file_path is None:
-            raise ValueError("Master file path is None")
 
         return {
             ds.data_key: DataKey(
-                source=self._master_file_path.as_posix(),
+                source="ADEiger FileWriter",
                 shape=list(ds.shape),
                 dtype="array"
                 if exposures_per_event > 1 or len(ds.shape) > 1
@@ -471,17 +470,17 @@ class EigerWriter(ADWriter[EigerDriverIO]):
         }
 
     @property
-    def _master_file_path(self) -> Path | None:
-        if self._current_sequence_id is None or self._file_info is None:
+    async def _master_file_path(self) -> Path | None:
+        if self._file_info is None:
             logger.warning(
-                "No master file path found for sequence id %s and file info %s",
-                self._current_sequence_id,
+                "No master file path found for file info %s",
                 self._file_info,
             )
             return None
+        sequence_id = await self.fileio.sequence_id.get_value()
         return (
             self._file_info.directory_path
-            / f"{self._file_info.filename}_{self._current_sequence_id}_master.h5"
+            / f"{self._file_info.filename}_{sequence_id}_master.h5"
         )
 
     async def collect_stream_docs(
@@ -489,19 +488,27 @@ class EigerWriter(ADWriter[EigerDriverIO]):
     ) -> AsyncIterator[StreamAsset]:
         """Generate stream documents for the written HDF5 files."""
         if indices_written:
-            if not self._composer:
-                if self._master_file_path is None:
-                    raise ValueError("Master file path is not set")
+            master_file_path = await self._master_file_path
+            if master_file_path is None:
+                raise ValueError("Master file path is not set")
 
-                self._composer = HDFDocumentComposer(
-                    self._master_file_path,
-                    self._datasets,
-                )
+            # Eiger generates a new master file for each trigger
+            # so we need to create a new composer with a new
+            # master file path
+            composer = HDFDocumentComposer(
+                master_file_path,
+                self._datasets,
+            )
+            # TODO: Make public
+            composer._last_emitted = indices_written - 1
 
-                for doc in self._composer.stream_resources():
-                    yield "stream_resource", doc
+            # For later validation
+            self._master_file_path_cache.append(master_file_path)
 
-            for doc in self._composer.stream_data(indices_written):
+            for doc in composer.stream_resources():
+                yield "stream_resource", doc
+
+            for doc in composer.stream_data(indices_written):
                 yield "stream_datum", doc
 
     async def observe_indices_written(
@@ -521,13 +528,12 @@ class EigerWriter(ADWriter[EigerDriverIO]):
     async def close(self) -> None:
         """Clean up file writing after acquisition and validate files exist."""
 
-        # Check that the master file was written
-        if self._master_file_path is not None and not self._master_file_path.exists():
-            logger.warning("Master file was not written: %s", self._master_file_path)
+        # Check that the master files were written
+        for master_file_path in self._master_file_path_cache:
+            if not master_file_path.exists():
+                logger.warning("Master file was not written: %s", master_file_path)
 
-        self._composer = None
         self._file_info = None
-        self._current_sequence_id = None
 
 
 class EigerController(ADBaseController[EigerDriverIO]):

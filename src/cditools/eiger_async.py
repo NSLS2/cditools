@@ -443,7 +443,7 @@ class EigerWriter(ADWriter[EigerDriverIO]):
         frame_datasets = [
             HDFDatasetDescription(
                 data_key=f"{name}_image",
-                dataset=f"/entry/data/data_{1:06d}",
+                dataset=f"entry/data/data_{1:06d}",
                 shape=(exposures_per_event, *detector_shape),
                 dtype_numpy=np_dtype,
                 chunk_shape=(1, *detector_shape),

@@ -53,7 +53,7 @@ def write_eiger_hdf5_file(
 
     with h5py.File(f"/tmp/test_data/{name}_{sequence_id}_master.h5", "w") as f:
         f["entry/data/data_000001"] = h5py.ExternalLink(
-            f"/tmp/test_data/{name}_{sequence_id}_data_000001.h5", "/entry/data/data"
+            f"/tmp/test_data/{name}_{sequence_id}_data_000001.h5", "entry/data/data"
         )
         f.create_dataset(
             "entry/instrument/detector/y_pixel_size",

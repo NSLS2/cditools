@@ -402,6 +402,13 @@ class EigerWriter(ADWriter[EigerDriverIO]):
                 chunk_shape=(1,),
             ),
             HDFDatasetDescription(
+                data_key=f"{name}_frame_time",
+                dataset="entry/instrument/detector/frame_time",
+                shape=(exposures_per_event,),
+                dtype_numpy=np.dtype(np.float32).str,
+                chunk_shape=(1,),
+            ),
+            HDFDatasetDescription(
                 data_key=f"{name}_beam_center_x",
                 dataset="entry/instrument/detector/beam_center_x",
                 shape=(exposures_per_event,),
@@ -436,7 +443,7 @@ class EigerWriter(ADWriter[EigerDriverIO]):
         frame_datasets = [
             HDFDatasetDescription(
                 data_key=f"{name}_image",
-                dataset=f"/entry/data_{1:06d}",
+                dataset=f"/entry/data/data_{1:06d}",
                 shape=(exposures_per_event, *detector_shape),
                 dtype_numpy=np_dtype,
                 chunk_shape=(1, *detector_shape),

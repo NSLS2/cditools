@@ -9,7 +9,7 @@ from collections.abc import AsyncGenerator, AsyncIterator, Sequence
 from logging import getLogger
 from pathlib import Path
 from typing import Annotated as A
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np  # type: ignore[import-not-found]
 from bluesky.protocols import StreamAsset
@@ -38,9 +38,52 @@ from ophyd_async.epics.adcore import (
     NDPluginBaseIO,
 )
 from ophyd_async.epics.signal import PvSuffix
+from urllib.parse import urlunparse
+
+from event_model import (  # type: ignore
+    ComposeStreamResource,
+    ComposeStreamResourceBundle,
+)
 
 logger = getLogger(__name__)
 
+
+# TODO: Port to ophyd-async
+# ==============================================================================
+class HDFDatasetDescription2(HDFDatasetDescription):
+    join_method: Literal["stack", "concat"] = "concat"
+
+class HDFDocumentComposer2(HDFDocumentComposer):
+    def __init__(self, full_file_name: Path, datasets: list[HDFDatasetDescription2], hostname: str = "localhost") -> None:
+        self._last_emitted = 0
+        self._hostname = hostname
+        uri = urlunparse(
+            (
+                "file",
+                self._hostname,
+                str(full_file_name.absolute()),
+                "",
+                "",
+                None,
+            )
+        )
+        bundler_composer = ComposeStreamResource()
+        self._bundles: list[ComposeStreamResourceBundle] = [
+            bundler_composer(
+                mimetype="application/x-hdf5",
+                uri=uri,
+                data_key=ds.data_key,
+                parameters={
+                    "dataset": ds.dataset,
+                    "chunk_shape": ds.chunk_shape,
+                    "join_method": ds.join_method,
+                },
+                uid=None,
+                validate=True,
+            )
+            for ds in datasets
+        ]
+# ==============================================================================
 
 # TODO: Port to ophyd-async (https://github.com/bluesky/ophyd-async/issues/961)
 # ==============================================================================
@@ -322,7 +365,7 @@ class EigerWriter(ADWriter[EigerDriverIO]):
         )
 
         self._file_info: PathInfo | None = None
-        self._datasets: list[HDFDatasetDescription] = []
+        self._datasets: list[HDFDatasetDescription2] = []
         self._master_file_path_cache: list[Path] = []
 
     async def open(self, name: str, exposures_per_event: int = 1) -> dict[str, DataKey]:
@@ -368,76 +411,87 @@ class EigerWriter(ADWriter[EigerDriverIO]):
 
         detector_shape = await self._dataset_describer.shape()
 
+        # TODO: Add these when empty shape datasets are supported by tiled
         # Add the master file datasets
-        master_datasets = [
-            HDFDatasetDescription(
-                data_key=f"{name}_y_pixel_size",
-                dataset="entry/instrument/detector/y_pixel_size",
-                shape=(),
-                dtype_numpy=np.dtype(np.float32).str,
-                chunk_shape=(1,),
-            ),
-            HDFDatasetDescription(
-                data_key=f"{name}_x_pixel_size",
-                dataset="entry/instrument/detector/x_pixel_size",
-                shape=(),
-                dtype_numpy=np.dtype(np.float32).str,
-                chunk_shape=(1,),
-            ),
-            HDFDatasetDescription(
-                data_key=f"{name}_detector_distance",
-                dataset="entry/instrument/detector/distance",
-                shape=(),
-                dtype_numpy=np.dtype(np.float32).str,
-                chunk_shape=(1,),
-            ),
-            HDFDatasetDescription(
-                data_key=f"{name}_incident_wavelength",
-                dataset="entry/instrument/detector/incident_wavelength",
-                shape=(),
-                dtype_numpy=np.dtype(np.float32).str,
-                chunk_shape=(1,),
-            ),
-            HDFDatasetDescription(
-                data_key=f"{name}_frame_time",
-                dataset="entry/instrument/detector/frame_time",
-                shape=(),
-                dtype_numpy=np.dtype(np.float32).str,
-                chunk_shape=(1,),
-            ),
-            HDFDatasetDescription(
-                data_key=f"{name}_beam_center_x",
-                dataset="entry/instrument/detector/beam_center_x",
-                shape=(),
-                dtype_numpy=np.dtype(np.float32).str,
-                chunk_shape=(1,),
-            ),
-            HDFDatasetDescription(
-                data_key=f"{name}_beam_center_y",
-                dataset="entry/instrument/detector/beam_center_y",
-                shape=(),
-                dtype_numpy=np.dtype(np.float32).str,
-                chunk_shape=(1,),
-            ),
-            HDFDatasetDescription(
-                data_key=f"{name}_count_time",
-                dataset="entry/instrument/detector/count_time",
-                shape=(),
-                dtype_numpy=np.dtype(np.float32).str,
-                chunk_shape=(1,),
-            ),
-            HDFDatasetDescription(
-                data_key=f"{name}_pixel_mask",
-                dataset="entry/instrument/detector/detectorSpecific/pixel_mask",
-                shape=(1, *detector_shape),
-                dtype_numpy=np.dtype(np.uint32).str,
-                chunk_shape=(1, *detector_shape),
-            ),
-        ]
+        master_datasets = []
+        #master_datasets = [
+        #    HDFDatasetDescription2(
+        #        data_key=f"{name}_y_pixel_size",
+        #        dataset="entry/instrument/detector/y_pixel_size",
+        #        shape=(),
+        #        dtype_numpy=np.dtype(np.float32).str,
+        #        chunk_shape=(),
+        #        join_method="stack",
+        #    ),
+        #    HDFDatasetDescription2(
+        #        data_key=f"{name}_x_pixel_size",
+        #        dataset="entry/instrument/detector/x_pixel_size",
+        #        shape=(),
+        #        dtype_numpy=np.dtype(np.float32).str,
+        #        chunk_shape=(),
+        #        join_method="stack",
+        #    ),
+        #    HDFDatasetDescription2(
+        #        data_key=f"{name}_detector_distance",
+        #        dataset="entry/instrument/detector/detector_distance",
+        #        shape=(),
+        #        dtype_numpy=np.dtype(np.float32).str,
+        #        chunk_shape=(),
+        #        join_method="stack",
+        #    ),
+        #    HDFDatasetDescription2(
+        #        data_key=f"{name}_incident_wavelength",
+        #        dataset="entry/instrument/detector/incident_wavelength",
+        #        shape=(),
+        #        dtype_numpy=np.dtype(np.float32).str,
+        #        chunk_shape=(),
+        #        join_method="stack",
+        #    ),
+        #    HDFDatasetDescription2(
+        #        data_key=f"{name}_frame_time",
+        #        dataset="entry/instrument/detector/frame_time",
+        #        shape=(),
+        #        dtype_numpy=np.dtype(np.float32).str,
+        #        chunk_shape=(),
+        #        join_method="stack",
+        #    ),
+        #    HDFDatasetDescription2(
+        #        data_key=f"{name}_beam_center_x",
+        #        dataset="entry/instrument/detector/beam_center_x",
+        #        shape=(),
+        #        dtype_numpy=np.dtype(np.float32).str,
+        #        chunk_shape=(),
+        #        join_method="stack",
+        #    ),
+        #    HDFDatasetDescription2(
+        #        data_key=f"{name}_beam_center_y",
+        #        dataset="entry/instrument/detector/beam_center_y",
+        #        shape=(),
+        #        dtype_numpy=np.dtype(np.float32).str,
+        #        chunk_shape=(),
+        #        join_method="stack",
+        #    ),
+        #    HDFDatasetDescription2(
+        #        data_key=f"{name}_count_time",
+        #        dataset="entry/instrument/detector/count_time",
+        #        shape=(),
+        #        dtype_numpy=np.dtype(np.float32).str,
+        #        chunk_shape=(),
+        #        join_method="stack",
+        #    ),
+        #    HDFDatasetDescription2(
+        #        data_key=f"{name}_pixel_mask",
+        #        dataset="entry/instrument/detector/detectorSpecific/pixel_mask",
+        #        shape=detector_shape,
+        #        dtype_numpy=np.dtype(np.uint32).str,
+        #        chunk_shape=detector_shape,
+        #        join_method="stack",
+        #    ),
+        #]
 
 
         frame_datasets = [
-            HDFDatasetDescription(
+            HDFDatasetDescription2(
                 data_key=f"{name}_image",
                 dataset=f"entry/data/data_{1:06d}",
                 shape=(exposures_per_event, *detector_shape),
@@ -489,7 +543,7 @@ class EigerWriter(ADWriter[EigerDriverIO]):
             # Eiger generates a new master file for each trigger
             # so we need to create a new composer with a new
             # master file path
-            composer = HDFDocumentComposer(
+            composer = HDFDocumentComposer2(
                 master_file_path,
                 self._datasets,
             )

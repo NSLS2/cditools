@@ -4,6 +4,8 @@ import asyncio
 import contextlib
 import pprint
 from collections.abc import Generator
+import shutil
+from pathlib import Path
 
 import pytest
 from bluesky.run_engine import RunEngine, TransitionError
@@ -89,7 +91,10 @@ def RE(request: pytest.FixtureRequest):
 
 @pytest.fixture
 def tiled_client() -> Generator[Container, None, None]:
-    server: SimpleTiledServer = SimpleTiledServer()
+    server_path = Path("/tmp/pytest/tiled-server")
+    if server_path.exists():
+        shutil.rmtree(server_path)
+    server: SimpleTiledServer = SimpleTiledServer("/tmp/pytest/tiled-server", readable_storage=["/tmp"])
     client: Container = from_uri(server.uri)
     yield client
     server.close()

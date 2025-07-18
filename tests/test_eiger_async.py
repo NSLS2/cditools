@@ -43,12 +43,12 @@ from cditools.eiger_async import (
 
 
 def write_eiger_hdf5_file(
-    num_triggers: int, num_images: int, sequence_id: int, name: str = "test_eiger"
+    num_images: int, sequence_id: int, name: str = "test_eiger"
 ):
     with h5py.File(f"/tmp/test_data/{name}_{sequence_id}_data_000001.h5", "w") as f:
         f.create_dataset(
             "entry/data/data",
-            data=np.zeros((num_triggers * num_images, 2048, 2048), dtype=np.uint32),
+            data=np.zeros((num_images, 2048, 2048), dtype=np.uint32),
         )
 
     with h5py.File(f"/tmp/test_data/{name}_{sequence_id}_master.h5", "w") as f:
@@ -57,39 +57,39 @@ def write_eiger_hdf5_file(
         )
         f.create_dataset(
             "entry/instrument/detector/y_pixel_size",
-            data=np.ones((num_images,), dtype=np.float32),
+            data=np.ones((), dtype=np.float32),
         )
         f.create_dataset(
             "entry/instrument/detector/x_pixel_size",
-            data=np.ones((num_images,), dtype=np.float32),
+            data=np.ones((), dtype=np.float32),
         )
         f.create_dataset(
             "entry/instrument/detector/distance",
-            data=np.ones((num_images,), dtype=np.float32),
+            data=np.ones((), dtype=np.float32),
         )
         f.create_dataset(
             "entry/instrument/detector/incident_wavelength",
-            data=np.ones((num_images,), dtype=np.float32),
+            data=np.ones((), dtype=np.float32),
         )
         f.create_dataset(
             "entry/instrument/detector/frame_time",
-            data=np.ones((num_images,), dtype=np.float32),
+            data=np.ones((), dtype=np.float32),
         )
         f.create_dataset(
             "entry/instrument/detector/beam_center_x",
-            data=np.ones((num_images,), dtype=np.float32),
+            data=np.ones((), dtype=np.float32),
         )
         f.create_dataset(
             "entry/instrument/detector/beam_center_y",
-            data=np.ones((num_images,), dtype=np.float32),
+            data=np.ones((), dtype=np.float32),
         )
         f.create_dataset(
             "entry/instrument/detector/count_time",
-            data=np.ones((num_images,), dtype=np.float32),
+            data=np.ones((), dtype=np.float32),
         )
         f.create_dataset(
             "entry/instrument/detector/pixel_mask",
-            data=np.zeros((num_images, 2048, 2048), dtype=np.uint32),
+            data=np.zeros((2048, 2048), dtype=np.uint32),
         )
 
 
@@ -187,7 +187,6 @@ async def test_eiger_writer_open(
     # Case 1: 1 image, 1 trigger
     set_mock_value(mock_eiger_driver.sequence_id, 0)
     set_mock_value(mock_eiger_driver.num_images, 1)
-    set_mock_value(mock_eiger_driver.num_triggers, 1)
 
     description = await eiger_writer.open(name="test_eiger", exposures_per_event=1)
     assert await mock_eiger_driver.fw_enable.get_value() is True
@@ -213,7 +212,6 @@ async def test_eiger_writer_open(
     # Expect 6 files, the first 5 will have 4 images, the last will have 2
     set_mock_value(mock_eiger_driver.sequence_id, 1)
     set_mock_value(mock_eiger_driver.num_images, 11)
-    set_mock_value(mock_eiger_driver.num_triggers, 2)
     description = await eiger_writer.open(
         name="test_eiger",
         exposures_per_event=await mock_eiger_driver.num_images.get_value(),
@@ -234,7 +232,7 @@ async def test_eiger_writer_open(
     assert tuple(data_key["shape"]) == (11, array_size_x, array_size_y)
     assert data_key["dtype"] == "array"
     assert "dtype_numpy" in data_key
-    assert data_key["dtype_numpy"] == np.dtype(data_type.lower()).str
+    assert data_key["dtype_numpy"] == np.dtype(np.uint32).str
     assert "external" in data_key
     assert data_key["external"] == "STREAM:"
     assert data_key["source"] == "ADEiger FileWriter"
@@ -249,7 +247,6 @@ async def test_eiger_writer_get_indices_written(
     set_mock_value(mock_eiger_driver.sequence_id, 1)
 
     # Case 1: 1 image, 1 trigger
-    set_mock_value(mock_eiger_driver.num_triggers, 1)
     set_mock_value(mock_eiger_driver.num_images, 1)
     set_mock_value(mock_eiger_driver.array_counter, 0)
     await eiger_writer.open(
@@ -261,7 +258,6 @@ async def test_eiger_writer_get_indices_written(
     assert await eiger_writer.get_indices_written() == 1
 
     # Case 2: 1 image, 5 triggers
-    set_mock_value(mock_eiger_driver.num_triggers, 5)
     set_mock_value(mock_eiger_driver.num_images, 1)
     set_mock_value(mock_eiger_driver.array_counter, 0)
     await eiger_writer.open(
@@ -277,7 +273,6 @@ async def test_eiger_writer_get_indices_written(
     assert await eiger_writer.get_indices_written() == 5
 
     # Case 3: 5 images, 2 triggers
-    set_mock_value(mock_eiger_driver.num_triggers, 2)
     set_mock_value(mock_eiger_driver.num_images, 5)
     set_mock_value(mock_eiger_driver.array_counter, 0)
     await eiger_writer.open(
@@ -437,7 +432,6 @@ async def test_eiger_writer_close(
     # Verify the writing was enabled
     set_mock_value(mock_eiger_driver.sequence_id, 1)
     set_mock_value(mock_eiger_driver.num_images, 1)
-    set_mock_value(mock_eiger_driver.num_triggers, 1)
     await eiger_writer.open(name="test_eiger", exposures_per_event=1)
     assert await mock_eiger_driver.fw_enable.get_value() is True
     assert await mock_eiger_driver.save_files.get_value() is True
@@ -463,7 +457,6 @@ async def test_eiger_controller_prepare(eiger_controller: EigerController) -> No
         await eiger_controller.driver.trigger_mode.get_value()
         == EigerTriggerMode.INTERNAL_SERIES
     )
-    # assert await eiger_controller.driver.num_triggers.get_value() == 1
     assert await eiger_controller.driver.num_images.get_value() == 1
     assert await eiger_controller.driver.image_mode.get_value() == ADImageMode.MULTIPLE
 
@@ -481,7 +474,6 @@ async def test_eiger_controller_prepare(eiger_controller: EigerController) -> No
         await eiger_controller.driver.trigger_mode.get_value()
         == EigerTriggerMode.EXTERNAL_SERIES
     )
-    # assert await eiger_controller.driver.num_triggers.get_value() == 10
     assert await eiger_controller.driver.num_images.get_value() == 5
     assert await eiger_controller.driver.image_mode.get_value() == ADImageMode.MULTIPLE
 
@@ -499,7 +491,6 @@ async def test_eiger_controller_prepare(eiger_controller: EigerController) -> No
         await eiger_controller.driver.trigger_mode.get_value()
         == EigerTriggerMode.EXTERNAL_SERIES
     )
-    # assert await eiger_controller.driver.num_triggers.get_value() == 0
     assert await eiger_controller.driver.num_images.get_value() == 1
     assert (
         await eiger_controller.driver.image_mode.get_value() == ADImageMode.CONTINUOUS
@@ -509,7 +500,6 @@ async def test_eiger_controller_prepare(eiger_controller: EigerController) -> No
 @pytest.mark.asyncio
 async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
     set_mock_value(mock_eiger_detector.driver.num_images, 1)
-    set_mock_value(mock_eiger_detector.driver.num_triggers, 2)
     set_mock_value(mock_eiger_detector.driver.acquire_period, 0.001)
     set_mock_value(mock_eiger_detector.fileio.array_counter, 0)
 
@@ -566,7 +556,6 @@ async def test_eiger_detector_with_RE(
                 await mock_eiger_detector.driver.acquire_period.get_value()
             )
             write_eiger_hdf5_file(
-                num_triggers=1,
                 num_images=num_images,
                 sequence_id=sequence_id,
                 name="test_eiger",
@@ -594,7 +583,7 @@ async def test_eiger_detector_with_RE(
     )
     assert (
         tiled_client.values().last()["streams"]["primary"]["test_eiger_image"].dtype
-        == np.uint16
+        == np.uint32
     )
     assert tiled_client.values().last()["streams"]["primary"][
         "test_eiger_x_pixel_size"
@@ -603,7 +592,7 @@ async def test_eiger_detector_with_RE(
         tiled_client.values()
         .last()["streams"]["primary"]["test_eiger_x_pixel_size"]
         .dtype
-        == np.uint8
+        == np.float32
     )
     assert tiled_client.values().last()["streams"]["primary"][
         "test_eiger_y_pixel_size"
@@ -612,7 +601,7 @@ async def test_eiger_detector_with_RE(
         tiled_client.values()
         .last()["streams"]["primary"]["test_eiger_y_pixel_size"]
         .dtype
-        == np.uint8
+        == np.float32
     )
     assert tiled_client.values().last()["streams"]["primary"][
         "test_eiger_detector_distance"
@@ -648,7 +637,7 @@ async def test_eiger_detector_with_RE(
         tiled_client.values()
         .last()["streams"]["primary"]["test_eiger_beam_center_x"]
         .dtype
-        == np.uint8
+        == np.float32
     )
     assert tiled_client.values().last()["streams"]["primary"][
         "test_eiger_beam_center_y"
@@ -657,7 +646,7 @@ async def test_eiger_detector_with_RE(
         tiled_client.values()
         .last()["streams"]["primary"]["test_eiger_beam_center_y"]
         .dtype
-        == np.uint8
+        == np.float32
     )
     assert tiled_client.values().last()["streams"]["primary"][
         "test_eiger_count_time"
@@ -675,7 +664,7 @@ async def test_eiger_detector_with_RE(
         tiled_client.values()
         .last()["streams"]["primary"]["test_eiger_pixel_mask"]
         .dtype
-        == np.uint8
+        == np.uint32
     )
 
     set_mock_value(mock_eiger_detector.fileio.sequence_id, 2)
@@ -692,7 +681,7 @@ async def test_eiger_detector_with_RE(
     )
     assert (
         tiled_client.values().last()["streams"]["primary"]["test_eiger_image"].dtype
-        == np.uint16
+        == np.uint32
     )
     assert tiled_client.values().last()["streams"]["primary"][
         "test_eiger_x_pixel_size"
@@ -701,7 +690,7 @@ async def test_eiger_detector_with_RE(
         tiled_client.values()
         .last()["streams"]["primary"]["test_eiger_x_pixel_size"]
         .dtype
-        == np.uint8
+        == np.float32
     )
     assert tiled_client.values().last()["streams"]["primary"][
         "test_eiger_y_pixel_size"
@@ -710,7 +699,7 @@ async def test_eiger_detector_with_RE(
         tiled_client.values()
         .last()["streams"]["primary"]["test_eiger_y_pixel_size"]
         .dtype
-        == np.uint8
+        == np.float32
     )
     assert tiled_client.values().last()["streams"]["primary"][
         "test_eiger_detector_distance"
@@ -746,7 +735,7 @@ async def test_eiger_detector_with_RE(
         tiled_client.values()
         .last()["streams"]["primary"]["test_eiger_beam_center_x"]
         .dtype
-        == np.uint8
+        == np.float32
     )
     assert tiled_client.values().last()["streams"]["primary"][
         "test_eiger_beam_center_y"
@@ -755,7 +744,7 @@ async def test_eiger_detector_with_RE(
         tiled_client.values()
         .last()["streams"]["primary"]["test_eiger_beam_center_y"]
         .dtype
-        == np.uint8
+        == np.float32
     )
     assert tiled_client.values().last()["streams"]["primary"][
         "test_eiger_count_time"
@@ -773,5 +762,5 @@ async def test_eiger_detector_with_RE(
         tiled_client.values()
         .last()["streams"]["primary"]["test_eiger_pixel_mask"]
         .dtype
-        == np.uint8
+        == np.uint32
     )

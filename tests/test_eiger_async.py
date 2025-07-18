@@ -48,7 +48,7 @@ def write_eiger_hdf5_file(
     with h5py.File(f"/tmp/test_data/{name}_{sequence_id}_data_000001.h5", "w") as f:
         f.create_dataset(
             "entry/data/data",
-            data=np.zeros((num_triggers * num_images, 2048, 2048), dtype=np.uint16),
+            data=np.zeros((num_triggers * num_images, 2048, 2048), dtype=np.uint32),
         )
 
     with h5py.File(f"/tmp/test_data/{name}_{sequence_id}_master.h5", "w") as f:
@@ -57,11 +57,11 @@ def write_eiger_hdf5_file(
         )
         f.create_dataset(
             "entry/instrument/detector/y_pixel_size",
-            data=np.ones((num_images,), dtype=np.uint8),
+            data=np.ones((num_images,), dtype=np.float32),
         )
         f.create_dataset(
             "entry/instrument/detector/x_pixel_size",
-            data=np.ones((num_images,), dtype=np.uint8),
+            data=np.ones((num_images,), dtype=np.float32),
         )
         f.create_dataset(
             "entry/instrument/detector/distance",
@@ -77,11 +77,11 @@ def write_eiger_hdf5_file(
         )
         f.create_dataset(
             "entry/instrument/detector/beam_center_x",
-            data=np.ones((num_images,), dtype=np.uint8),
+            data=np.ones((num_images,), dtype=np.float32),
         )
         f.create_dataset(
             "entry/instrument/detector/beam_center_y",
-            data=np.ones((num_images,), dtype=np.uint8),
+            data=np.ones((num_images,), dtype=np.float32),
         )
         f.create_dataset(
             "entry/instrument/detector/count_time",
@@ -89,7 +89,7 @@ def write_eiger_hdf5_file(
         )
         f.create_dataset(
             "entry/instrument/detector/pixel_mask",
-            data=np.zeros((num_images, 2048, 2048), dtype=np.uint8),
+            data=np.zeros((num_images, 2048, 2048), dtype=np.uint32),
         )
 
 

@@ -366,10 +366,7 @@ class EigerWriter(ADWriter[EigerDriverIO]):
                 self._min_num_images_per_file,
             )
 
-        detector_shape, np_dtype = await asyncio.gather(
-            self._dataset_describer.shape(),
-            self._dataset_describer.np_datatype(),
-        )
+        detector_shape = await self._dataset_describer.shape()
 
         # Add the master file datasets
         master_datasets = [
@@ -377,14 +374,14 @@ class EigerWriter(ADWriter[EigerDriverIO]):
                 data_key=f"{name}_y_pixel_size",
                 dataset="entry/instrument/detector/y_pixel_size",
                 shape=(exposures_per_event,),
-                dtype_numpy=np.dtype(np.uint8).str,
+                dtype_numpy=np.dtype(np.float32).str,
                 chunk_shape=(1,),
             ),
             HDFDatasetDescription(
                 data_key=f"{name}_x_pixel_size",
                 dataset="entry/instrument/detector/x_pixel_size",
                 shape=(exposures_per_event,),
-                dtype_numpy=np.dtype(np.uint8).str,
+                dtype_numpy=np.dtype(np.float32).str,
                 chunk_shape=(1,),
             ),
             HDFDatasetDescription(
@@ -412,14 +409,14 @@ class EigerWriter(ADWriter[EigerDriverIO]):
                 data_key=f"{name}_beam_center_x",
                 dataset="entry/instrument/detector/beam_center_x",
                 shape=(exposures_per_event,),
-                dtype_numpy=np.dtype(np.uint8).str,
+                dtype_numpy=np.dtype(np.float32).str,
                 chunk_shape=(1,),
             ),
             HDFDatasetDescription(
                 data_key=f"{name}_beam_center_y",
                 dataset="entry/instrument/detector/beam_center_y",
                 shape=(exposures_per_event,),
-                dtype_numpy=np.dtype(np.uint8).str,
+                dtype_numpy=np.dtype(np.float32).str,
                 chunk_shape=(1,),
             ),
             HDFDatasetDescription(
@@ -434,7 +431,7 @@ class EigerWriter(ADWriter[EigerDriverIO]):
                 dataset="entry/instrument/detector/detectorSpecific/pixel_mask",
                 # TODO: Maybe only 1 mask?
                 shape=(exposures_per_event, *detector_shape),
-                dtype_numpy=np.dtype(np.uint8).str,
+                dtype_numpy=np.dtype(np.uint32).str,
                 chunk_shape=(1, *detector_shape),
             ),
         ]
@@ -445,7 +442,8 @@ class EigerWriter(ADWriter[EigerDriverIO]):
                 data_key=f"{name}_image",
                 dataset=f"entry/data/data_{1:06d}",
                 shape=(exposures_per_event, *detector_shape),
-                dtype_numpy=np_dtype,
+                # Always write as uint32
+                dtype_numpy=np.dtype(np.uint32).str,
                 chunk_shape=(1, *detector_shape),
             )
         ]

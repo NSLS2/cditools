@@ -390,7 +390,7 @@ async def test_eiger_writer_collect_stream_docs(
     assert len(data_docs) == 1
     assert (
         resource_docs[0]["uri"]
-        == f"file://localhost/{EIGER_DATA_PATH}/test_eiger_1_master.h5"
+        == f"file://localhost{EIGER_DATA_PATH}/test_eiger_1_master.h5"
     )
 
     await eiger_writer.close()
@@ -403,15 +403,15 @@ async def test_eiger_writer_collect_stream_docs(
     # 3 triggers, so 30 total resources/datasets
     assert (
         resource_docs[0]["uri"]
-        == f"file://localhost/{EIGER_DATA_PATH}/test_eiger_2_master.h5"
+        == f"file://localhost{EIGER_DATA_PATH}/test_eiger_2_master.h5"
     )
     assert (
         resource_docs[1]["uri"]
-        == f"file://localhost/{EIGER_DATA_PATH}/test_eiger_3_master.h5"
+        == f"file://localhost{EIGER_DATA_PATH}/test_eiger_3_master.h5"
     )
     assert (
         resource_docs[2]["uri"]
-        == f"file://localhost/{EIGER_DATA_PATH}/test_eiger_4_master.h5"
+        == f"file://localhost{EIGER_DATA_PATH}/test_eiger_4_master.h5"
     )
 
 

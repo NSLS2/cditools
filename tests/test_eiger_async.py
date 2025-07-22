@@ -4,7 +4,6 @@ Tests for the EigerWriter class using ophyd-async mocking utilities.
 
 from __future__ import annotations
 
-import os
 import asyncio
 import shutil
 from collections.abc import Generator
@@ -14,9 +13,9 @@ import bluesky.plans as bp
 import h5py
 import numpy as np
 import pytest
-from event_model import StreamDatum, StreamResource
 from bluesky.callbacks.tiled_writer import TiledWriter
 from bluesky.run_engine import RunEngine
+from event_model import StreamDatum, StreamResource
 from ophyd_async.core import (
     DetectorTrigger,
     PathProvider,
@@ -25,7 +24,7 @@ from ophyd_async.core import (
     TriggerInfo,
     init_devices,
 )
-from ophyd_async.epics.adcore import ADBaseDatasetDescriber, ADImageMode
+from ophyd_async.epics.adcore import ADBaseDatasetDescriber, ADBaseDataType, ADImageMode
 from ophyd_async.testing import (
     callback_on_mock_put,
     set_mock_value,
@@ -41,19 +40,19 @@ from cditools.eiger_async import (
     EigerWriter,
 )
 
+EIGER_DATA_PATH = Path("/tmp/pytest/eiger_data/")
 
-def write_eiger_hdf5_file(
-    num_images: int, sequence_id: int, name: str = "test_eiger"
-):
-    with h5py.File(f"/tmp/test_data/{name}_{sequence_id}_data_000001.h5", "w") as f:
+
+def write_eiger_hdf5_file(num_images: int, sequence_id: int, name: str = "test_eiger"):
+    with h5py.File(f"{EIGER_DATA_PATH}/{name}_{sequence_id}_data_000001.h5", "w") as f:
         f.create_dataset(
             "entry/data/data",
             data=np.zeros((num_images, 2048, 2048), dtype=np.uint32),
         )
 
-    with h5py.File(f"/tmp/test_data/{name}_{sequence_id}_master.h5", "w") as f:
+    with h5py.File(f"{EIGER_DATA_PATH}/{name}_{sequence_id}_master.h5", "w") as f:
         f["entry/data/data_000001"] = h5py.ExternalLink(
-            f"/tmp/test_data/{name}_{sequence_id}_data_000001.h5", "entry/data/data"
+            f"{EIGER_DATA_PATH}/{name}_{sequence_id}_data_000001.h5", "entry/data/data"
         )
         f.create_dataset(
             "entry/instrument/detector/y_pixel_size",
@@ -95,11 +94,10 @@ def write_eiger_hdf5_file(
 
 @pytest.fixture
 def mock_eiger_detector(RE: RunEngine) -> Generator[EigerDetector, None, None]:
-    data_path = Path("/tmp/test_data/")
-    if not data_path.exists():
-        data_path.mkdir(parents=True)
+    if not EIGER_DATA_PATH.exists():
+        EIGER_DATA_PATH.mkdir(parents=True)
     path_provider = StaticPathProvider(
-        StaticFilenameProvider("test_eiger"), directory_path="/tmp/test_data"
+        StaticFilenameProvider("test_eiger"), directory_path=EIGER_DATA_PATH
     )
     with init_devices(mock=True):
         detector = EigerDetector("MOCK:EIGER:", path_provider, name="test_eiger")
@@ -110,9 +108,8 @@ def mock_eiger_detector(RE: RunEngine) -> Generator[EigerDetector, None, None]:
 
     yield detector
 
-    data_path = Path("/tmp/test_data/")
-    if data_path.exists():
-        shutil.rmtree(data_path)
+    if EIGER_DATA_PATH.exists():
+        shutil.rmtree(EIGER_DATA_PATH)
 
 
 @pytest.fixture
@@ -125,7 +122,7 @@ def mock_eiger_driver(RE: RunEngine) -> EigerDriverIO:
     set_mock_value(driver.file_path_exists, True)
     set_mock_value(driver.array_size_x, 2048)
     set_mock_value(driver.array_size_y, 2048)
-    set_mock_value(driver.data_type, "UInt16")
+    set_mock_value(driver.data_type, ADBaseDataType.UINT16)
 
     return driver
 
@@ -134,7 +131,7 @@ def mock_eiger_driver(RE: RunEngine) -> EigerDriverIO:
 def mock_path_provider() -> PathProvider:
     """Create a mock path provider for testing."""
     return StaticPathProvider(
-        StaticFilenameProvider("test_eiger"), directory_path="/tmp/test_data"
+        StaticFilenameProvider("test_eiger"), directory_path=EIGER_DATA_PATH
     )
 
 
@@ -144,14 +141,13 @@ def eiger_writer(
     mock_path_provider: PathProvider,
 ) -> Generator[EigerWriter, None, None]:
     """Create an EigerWriter instance for testing."""
-    data_path = Path("/tmp/test_data/")
-    if not data_path.exists():
-        data_path.mkdir(parents=True)
-    assert os.path.exists("/tmp/test_data")
+    if not EIGER_DATA_PATH.exists():
+        EIGER_DATA_PATH.mkdir(parents=True)
+    assert EIGER_DATA_PATH.exists()
     dataset_describer = ADBaseDatasetDescriber(mock_eiger_driver)
     yield EigerWriter(mock_eiger_driver, mock_path_provider, dataset_describer)
-    if data_path.exists():
-        shutil.rmtree(data_path)
+    if EIGER_DATA_PATH.exists():
+        shutil.rmtree(EIGER_DATA_PATH)
 
 
 @pytest.fixture
@@ -167,9 +163,9 @@ async def test_eiger_writer_initialization(
 ):
     """Test that EigerWriter initializes correctly."""
     assert eiger_writer.fileio is mock_eiger_driver
-    assert eiger_writer._path_provider is mock_path_provider
-    assert eiger_writer._dataset_describer is not None
-    assert eiger_writer._file_info is None
+    assert eiger_writer._path_provider is mock_path_provider  # type: ignore[reportPrivateUsage]
+    assert eiger_writer._dataset_describer is not None  # type: ignore[reportPrivateUsage]
+    assert eiger_writer._file_info is None  # type: ignore[reportPrivateUsage]
 
 
 @pytest.mark.asyncio
@@ -178,10 +174,9 @@ async def test_eiger_writer_open(
     mock_eiger_driver: EigerDriverIO,
 ) -> None:
     """Test the open method configures the detector correctly."""
-    array_size_x, array_size_y, data_type = await asyncio.gather(
+    array_size_x, array_size_y = await asyncio.gather(
         mock_eiger_driver.array_size_x.get_value(),
         mock_eiger_driver.array_size_y.get_value(),
-        mock_eiger_driver.data_type.get_value(),
     )
 
     # Case 1: 1 image, 1 trigger
@@ -204,10 +199,7 @@ async def test_eiger_writer_open(
         # "test_eiger_pixel_mask",
         "test_eiger_image",
     }
-    assert (
-        description["test_eiger_image"]["source"]
-        == "ADEiger FileWriter"
-    )
+    assert description["test_eiger_image"]["source"] == "ADEiger FileWriter"
 
     # Case 2: 4 images per file, 11 images, 2 triggers
     # Expect 6 files, the first 5 will have 4 images, the last will have 2
@@ -373,7 +365,9 @@ async def test_eiger_writer_collect_stream_docs(
 ) -> None:
     """Test collecting stream documents."""
 
-    async def collect_docs(num_triggers: int) -> tuple[list[StreamResource], list[StreamDatum]]:
+    async def collect_docs(
+        num_triggers: int,
+    ) -> tuple[list[StreamResource], list[StreamDatum]]:
         resource_docs = []
         data_docs = []
         for i in range(1, num_triggers + 1):
@@ -396,7 +390,7 @@ async def test_eiger_writer_collect_stream_docs(
     assert len(data_docs) == 1
     assert (
         resource_docs[0]["uri"]
-        == "file://localhost/tmp/test_data/test_eiger_1_master.h5"
+        == f"file://localhost/{EIGER_DATA_PATH}/test_eiger_1_master.h5"
     )
 
     await eiger_writer.close()
@@ -409,15 +403,15 @@ async def test_eiger_writer_collect_stream_docs(
     # 3 triggers, so 30 total resources/datasets
     assert (
         resource_docs[0]["uri"]
-        == "file://localhost/tmp/test_data/test_eiger_2_master.h5"
+        == f"file://localhost/{EIGER_DATA_PATH}/test_eiger_2_master.h5"
     )
     assert (
         resource_docs[1]["uri"]
-        == "file://localhost/tmp/test_data/test_eiger_3_master.h5"
+        == f"file://localhost/{EIGER_DATA_PATH}/test_eiger_3_master.h5"
     )
     assert (
         resource_docs[2]["uri"]
-        == "file://localhost/tmp/test_data/test_eiger_4_master.h5"
+        == f"file://localhost/{EIGER_DATA_PATH}/test_eiger_4_master.h5"
     )
 
 
@@ -437,7 +431,7 @@ async def test_eiger_writer_close(
 
     # Verify the writing was disabled
     await eiger_writer.close()
-    assert eiger_writer._file_info is None
+    assert eiger_writer._file_info is None  # type: ignore[reportPrivateUsage]
 
 
 @pytest.mark.asyncio
@@ -574,7 +568,10 @@ async def test_eiger_detector_with_RE(
     set_mock_value(mock_eiger_detector.driver.acquire_period, 0.001)
     uid = RE(bp.count([mock_eiger_detector]))
     assert uid is not None
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_image"].read() is not None
+    assert (
+        tiled_client.values().last()["streams"]["primary"]["test_eiger_image"].read()
+        is not None
+    )
     assert tiled_client.values().last()["streams"]["primary"][
         "test_eiger_image"
     ].shape == (
@@ -683,7 +680,10 @@ async def test_eiger_detector_with_RE(
     set_mock_value(mock_eiger_detector.driver.acquire_period, 0.001)
     uid = RE(bp.count([mock_eiger_detector], num=10))
     assert uid is not None
-    assert tiled_client.values().last()["streams"]["primary"]["test_eiger_image"].read() is not None
+    assert (
+        tiled_client.values().last()["streams"]["primary"]["test_eiger_image"].read()
+        is not None
+    )
     assert tiled_client.values().last()["streams"]["primary"][
         "test_eiger_image"
     ].shape == (

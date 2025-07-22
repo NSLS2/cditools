@@ -3,12 +3,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import pprint
-from collections.abc import Generator
 import shutil
+from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 import pytest
-from bluesky.run_engine import RunEngine, TransitionError
+from bluesky._vendor.super_state_machine.errors import TransitionError
+from bluesky.run_engine import RunEngine
 from tiled.client import from_uri
 from tiled.client.container import Container
 from tiled.server.simple import SimpleTiledServer
@@ -21,7 +23,7 @@ _ALLOWED_PYTEST_TASKS = {"async_finalizer", "async_setup", "async_teardown"}
 # ==================================================================================
 def _error_and_kill_pending_tasks(
     loop: asyncio.AbstractEventLoop, test_name: str, test_passed: bool
-) -> set[asyncio.Task]:
+) -> set[asyncio.Task[Any]]:
     """Cancels pending tasks in the event loop for a test. Raises an exception if
     the test hasn't already.
 
@@ -73,7 +75,7 @@ def RE(request: pytest.FixtureRequest):
                 RE.halt()
 
         loop.call_soon_threadsafe(loop.stop)
-        RE._th.join()
+        RE._th.join()  # type: ignore[reportPrivateUsage]
 
         try:
             _error_and_kill_pending_tasks(
@@ -94,7 +96,10 @@ def tiled_client() -> Generator[Container, None, None]:
     server_path = Path("/tmp/pytest/tiled-server")
     if server_path.exists():
         shutil.rmtree(server_path)
-    server: SimpleTiledServer = SimpleTiledServer("/tmp/pytest/tiled-server", readable_storage=["/tmp"])
+    server: SimpleTiledServer = SimpleTiledServer(
+        server_path.as_posix(),
+        readable_storage=["/tmp/pytest"],  # type: ignore[reportArgumentType]
+    )
     client: Container = from_uri(server.uri)
     yield client
     server.close()

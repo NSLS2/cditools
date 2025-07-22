@@ -10,16 +10,22 @@ from logging import getLogger
 from pathlib import Path
 from typing import Annotated as A
 from typing import Any, Literal
+from urllib.parse import urlunparse
 
 import numpy as np  # type: ignore[import-not-found]
 from bluesky.protocols import StreamAsset
-from event_model import DataKey  # type: ignore[import-untyped]
+from event_model import (  # type: ignore[import-untyped]
+    ComposeStreamResource,
+    ComposeStreamResourceBundle,
+    DataKey,  # type: ignore[import-untyped]
+)
 from ophyd_async.core import (
     DetectorTrigger,
     HDFDatasetDescription,
     HDFDocumentComposer,
     PathInfo,
     PathProvider,
+    SignalDatatypeT,
     SignalR,
     SignalRW,
     StrictEnum,
@@ -38,12 +44,6 @@ from ophyd_async.epics.adcore import (
     NDPluginBaseIO,
 )
 from ophyd_async.epics.signal import PvSuffix
-from urllib.parse import urlunparse
-
-from event_model import (  # type: ignore
-    ComposeStreamResource,
-    ComposeStreamResourceBundle,
-)
 
 logger = getLogger(__name__)
 
@@ -53,8 +53,14 @@ logger = getLogger(__name__)
 class HDFDatasetDescription2(HDFDatasetDescription):
     join_method: Literal["stack", "concat"] = "concat"
 
+
 class HDFDocumentComposer2(HDFDocumentComposer):
-    def __init__(self, full_file_name: Path, datasets: list[HDFDatasetDescription2], hostname: str = "localhost") -> None:
+    def __init__(
+        self,
+        full_file_name: Path,
+        datasets: list[HDFDatasetDescription2],
+        hostname: str = "localhost",
+    ) -> None:
         self._last_emitted = 0
         self._hostname = hostname
         uri = urlunparse(
@@ -83,7 +89,10 @@ class HDFDocumentComposer2(HDFDocumentComposer):
             )
             for ds in datasets
         ]
+
+
 # ==============================================================================
+
 
 # TODO: Port to ophyd-async (https://github.com/bluesky/ophyd-async/issues/961)
 # ==============================================================================
@@ -102,6 +111,8 @@ class NDFileIO(NDArrayBaseIO):
     array_size0: A[SignalR[int], PvSuffix("ArraySize0")]
     array_size1: A[SignalR[int], PvSuffix("ArraySize1")]
     create_directory: A[SignalRW[int], PvSuffix("CreateDirectory")]
+
+
 # ==============================================================================
 
 
@@ -341,7 +352,7 @@ class Eiger2DriverIO(EigerDriverIO):
     fw_hdf5_format: A[SignalRW[EigerHDF5Format], PvSuffix.rbv("FWHDF5Format")]
 
 
-class EigerWriter(ADWriter[EigerDriverIO]):
+class EigerWriter(ADWriter[EigerDriverIO]):  # type: ignore[reportInvalidTypeArguments]
     """Eiger-specific file writer using the built-in FileWriter interface."""
 
     default_suffix: str = "cam1:"
@@ -414,7 +425,7 @@ class EigerWriter(ADWriter[EigerDriverIO]):
         # TODO: Add these when empty shape datasets are supported by tiled
         # Add the master file datasets
         master_datasets = []
-        #master_datasets = [
+        # master_datasets = [
         #    HDFDatasetDescription2(
         #        data_key=f"{name}_y_pixel_size",
         #        dataset="entry/instrument/detector/y_pixel_size",
@@ -487,8 +498,7 @@ class EigerWriter(ADWriter[EigerDriverIO]):
         #        chunk_shape=detector_shape,
         #        join_method="stack",
         #    ),
-        #]
-
+        # ]
 
         frame_datasets = [
             HDFDatasetDescription2(
@@ -538,7 +548,8 @@ class EigerWriter(ADWriter[EigerDriverIO]):
         if indices_written:
             master_file_path = await self._master_file_path
             if master_file_path is None:
-                raise ValueError("Master file path is not set")
+                msg = f"Master file path is not set for {name}: {self._file_info}"
+                raise ValueError(msg)
 
             # Eiger generates a new master file for each trigger
             # so we need to create a new composer with a new
@@ -548,7 +559,7 @@ class EigerWriter(ADWriter[EigerDriverIO]):
                 self._datasets,
             )
             # TODO: Make public
-            composer._last_emitted = indices_written - 1
+            composer._last_emitted = indices_written - 1  # type: ignore[reportPrivateUsage]
 
             # For later validation
             self._master_file_path_cache.append(master_file_path)
@@ -562,16 +573,11 @@ class EigerWriter(ADWriter[EigerDriverIO]):
     async def observe_indices_written(
         self, timeout: float
     ) -> AsyncGenerator[int, None]:
-        async for num_captured in observe_value(
-            self.fileio.array_counter, timeout
-        ):
+        async for num_captured in observe_value(self.fileio.array_counter, timeout):
             yield num_captured // self._exposures_per_event
 
     async def get_indices_written(self) -> int:
-        return (
-            await self.fileio.array_counter.get_value()
-            // self._exposures_per_event
-        )
+        return await self.fileio.array_counter.get_value() // self._exposures_per_event
 
     async def close(self) -> None:
         """Clean up file writing after acquisition and validate files exist."""
@@ -592,9 +598,16 @@ class EigerController(ADBaseController[EigerDriverIO]):
     ) -> None:
         super().__init__(driver, *args, **kwargs)
 
-    def get_deadtime(self, _exposure: float | None) -> float:
+    def get_deadtime(self, exposure: float | None) -> float:
         """Get detector deadtime for the given exposure."""
-        return 0.001
+        default_deadtime = 0.000001
+        if exposure is not None:
+            logger.warning(
+                "Ignoring exposure to calculate deadtime: %s, defaulting to %s",
+                exposure,
+                default_deadtime,
+            )
+        return default_deadtime
 
     async def prepare(self, trigger_info: TriggerInfo) -> None:
         """Prepare the detector for acquisition."""
@@ -637,10 +650,10 @@ class EigerDetector(AreaDetector[EigerController]):
         prefix: str,
         path_provider: PathProvider,
         driver_suffix: str = "cam1:",
-        writer_cls: type[ADWriter] = EigerWriter,
+        writer_cls: type[ADWriter] = EigerWriter,  # type: ignore[reportUnknownParameterType]
         fileio_suffix: str | None = None,
         name: str = "",
-        config_sigs: Sequence[SignalR] = (),
+        config_sigs: Sequence[SignalR[SignalDatatypeT]] = (),
         plugins: dict[str, NDPluginBaseIO] | None = None,
     ):
         driver = EigerDriverIO(prefix + driver_suffix)

@@ -31,23 +31,31 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
   "ophyd",
+  "ophyd-async >=0.10.0a4",
   "h5py",
 ]
 
 [project.optional-dependencies]
 test = [
+  "entrypoints",
   "pytest >=6",
   "pytest-cov >=3",
+  "pytest-asyncio >=0.18",
   "caproto[standard] >=0.4.2rc1,!=1.2.0",
+  "tiled[minimal-client]",
+  "tiled[minimal-server]",
 ]
 dev = [
   "caproto[standard] >=0.4.2rc1,!=1.2.0",
   "pytest >=6",
   "pytest-cov >=3",
+  "pytest-asyncio >=0.18",
   "pandas",
   "pre-commit",
   "ipython",
   "ruff",
+  "aioca",
+  "tiled[minimal-client,server]",
   "pyright",
 ]
 docs = [
@@ -70,12 +78,10 @@ black-hole-ioc = "cditools.simulated.black_hole:main"
 [tool.setuptools_scm]
 write_to = "src/cditools/_version.py"
 
-
 [tool.uv]
 dev-dependencies = [
   "cditools[dev]",
 ]
-
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -89,7 +95,6 @@ testpaths = [
   "tests",
 ]
 
-
 [tool.coverage]
 run.source = ["cditools"]
 report.exclude_also = [
@@ -99,7 +104,7 @@ report.exclude_also = [
 
 [tool.pyright]
 include = ["src", "tests"]
-pythonVersion = "3.9"
+pythonVersion = "3.12"
 typeCheckingMode = "strict"
 reportMissingImports = true
 # Required for untyped packages
@@ -146,21 +151,6 @@ isort.required-imports = ["from __future__ import annotations"]
 "tests/**" = ["T20", "ARG001"]
 "noxfile.py" = ["T20"]
 
-
-[tool.pylint]
-py-version = "3.9"
-ignore-paths = [".*/_version.py"]
-reports.output-format = "colorized"
-similarities.ignore-imports = "yes"
-messages_control.disable = [
-  "design",
-  "fixme",
-  "line-too-long",
-  "missing-module-docstring",
-  "missing-function-docstring",
-  "wrong-import-position",
-]
-
 [tool.pixi.project]
 channels = ["conda-forge"]
 platforms = ["linux-64"]
@@ -173,6 +163,3 @@ default = { solve-group = "default" }
 dev = { features = ["dev"], solve-group = "default" }
 docs = { features = ["docs"], solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
-
-[tool.codespell]
-skip = '*.lock'

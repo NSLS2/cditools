@@ -424,81 +424,81 @@ class EigerWriter(ADWriter[EigerDriverIO]):  # type: ignore[reportInvalidTypeArg
 
         # TODO: Add these when empty shape datasets are supported by tiled
         # Add the master file datasets
-        master_datasets = []
-        # master_datasets = [
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_y_pixel_size",
-        #        dataset="entry/instrument/detector/y_pixel_size",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_x_pixel_size",
-        #        dataset="entry/instrument/detector/x_pixel_size",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_detector_distance",
-        #        dataset="entry/instrument/detector/detector_distance",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_incident_wavelength",
-        #        dataset="entry/instrument/detector/incident_wavelength",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_frame_time",
-        #        dataset="entry/instrument/detector/frame_time",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_beam_center_x",
-        #        dataset="entry/instrument/detector/beam_center_x",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_beam_center_y",
-        #        dataset="entry/instrument/detector/beam_center_y",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_count_time",
-        #        dataset="entry/instrument/detector/count_time",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_pixel_mask",
-        #        dataset="entry/instrument/detector/detectorSpecific/pixel_mask",
-        #        shape=detector_shape,
-        #        dtype_numpy=np.dtype(np.uint32).str,
-        #        chunk_shape=detector_shape,
-        #        join_method="stack",
-        #    ),
-        # ]
+        # master_datasets = []
+        master_datasets = [
+           HDFDatasetDescription2(
+               data_key=f"{name}_y_pixel_size",
+               dataset="entry/instrument/detector/y_pixel_size",
+               shape=(),
+               dtype_numpy=np.dtype(np.float32).str,
+               chunk_shape=(),
+               join_method="stack",
+           ),
+           HDFDatasetDescription2(
+               data_key=f"{name}_x_pixel_size",
+               dataset="entry/instrument/detector/x_pixel_size",
+               shape=(),
+               dtype_numpy=np.dtype(np.float32).str,
+               chunk_shape=(),
+               join_method="stack",
+           ),
+           HDFDatasetDescription2(
+               data_key=f"{name}_detector_distance",
+               dataset="entry/instrument/detector/detector_distance",
+               shape=(),
+               dtype_numpy=np.dtype(np.float32).str,
+               chunk_shape=(),
+               join_method="stack",
+           ),
+           HDFDatasetDescription2(
+               data_key=f"{name}_incident_wavelength",
+               dataset="entry/instrument/detector/incident_wavelength",
+               shape=(),
+               dtype_numpy=np.dtype(np.float32).str,
+               chunk_shape=(),
+               join_method="stack",
+           ),
+           HDFDatasetDescription2(
+               data_key=f"{name}_frame_time",
+               dataset="entry/instrument/detector/frame_time",
+               shape=(),
+               dtype_numpy=np.dtype(np.float32).str,
+               chunk_shape=(),
+               join_method="stack",
+           ),
+           HDFDatasetDescription2(
+               data_key=f"{name}_beam_center_x",
+               dataset="entry/instrument/detector/beam_center_x",
+               shape=(),
+               dtype_numpy=np.dtype(np.float32).str,
+               chunk_shape=(),
+               join_method="stack",
+           ),
+           HDFDatasetDescription2(
+               data_key=f"{name}_beam_center_y",
+               dataset="entry/instrument/detector/beam_center_y",
+               shape=(),
+               dtype_numpy=np.dtype(np.float32).str,
+               chunk_shape=(),
+               join_method="stack",
+           ),
+           HDFDatasetDescription2(
+               data_key=f"{name}_count_time",
+               dataset="entry/instrument/detector/count_time",
+               shape=(),
+               dtype_numpy=np.dtype(np.float32).str,
+               chunk_shape=(),
+               join_method="stack",
+           ),
+           HDFDatasetDescription2(
+               data_key=f"{name}_pixel_mask",
+               dataset="entry/instrument/detector/detectorSpecific/pixel_mask",
+               shape=detector_shape,
+               dtype_numpy=np.dtype(np.uint32).str,
+               chunk_shape=detector_shape,
+               join_method="stack",
+           ),
+        ]
 
         frame_datasets = [
             HDFDatasetDescription2(

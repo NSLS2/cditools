@@ -42,8 +42,6 @@ test = [
   "pytest-cov >=3",
   "pytest-asyncio >=0.18",
   "caproto[standard] >=0.4.2rc1,!=1.2.0",
-  "tiled[minimal-client]",
-  "tiled[minimal-server]",
 ]
 dev = [
   "caproto[standard] >=0.4.2rc1,!=1.2.0",
@@ -157,6 +155,7 @@ platforms = ["linux-64"]
 
 [tool.pixi.pypi-dependencies]
 cditools = { path = ".", editable = true }
+tiled = { path = "../tiled", editable = true, extras = ["minimal-client", "server"] }
 
 [tool.pixi.environments]
 default = { solve-group = "default" }

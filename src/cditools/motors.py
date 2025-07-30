@@ -217,8 +217,8 @@ class HKB(Device):
 
 
 class KB(Device):
-    vkb = Cpt(VKB)
-    hkb = Cpt(HKB)
+    vkb = Cpt(VKB, "")
+    hkb = Cpt(HKB, "")
     win = DDC(
         {
             "x": (EpicsMotor, "Wnd:Exit-Ax:TX}Mtr", {}),
@@ -269,7 +269,7 @@ class SAM(Device):
 
 
 class GON(Device):
-    sam = Cpt(SAM)
+    sam = Cpt(SAM, "")
     align = DDC(
         {
             "rx": (EpicsMotor, "Gon:1-Ax:Rx3}Mtr", {}),

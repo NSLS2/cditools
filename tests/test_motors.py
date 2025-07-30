@@ -73,6 +73,7 @@ def test_motors_can_connect(black_hole_ioc: None) -> None:
 
     kb = KB(prefix="XF:09IDC-OP:1{", name="kb")
     kb.wait_for_connection(timeout=10.0)
+    print(kb.hkb.mir.yaw.high_limit_switch.pvname)
 
     dm4 = DM4(prefix="XF:09IDC-OP:1{", name="dm4")
     dm4.wait_for_connection(timeout=10.0)

@@ -237,13 +237,13 @@ class DM4(Device):
 
 
 class SAM(Device):
-    _2c_sm = DDC(
+    c_sm = DDC(
         {
             "lrx": (EpicsMotor, "Gon:1-Ax:Rx1}Mtr", {}),
             "lrz": (EpicsMotor, "Gon:1-Ax:Rz1}Mtr", {}),
         }
     )
-    _2c_lg = DDC(
+    c_lg = DDC(
         {
             "lrx": (EpicsMotor, "Gon:1-Ax:Rx2}Mtr", {}),
             "lrz": (EpicsMotor, "Gon:1-Ax:Rz2}Mtr", {}),

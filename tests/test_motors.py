@@ -22,7 +22,6 @@ from cditools.motors import (
     VPM,
 )
 
-
 EpicsSignal.set_defaults(timeout=20.0, connection_timeout=20.0, write_timeout=20.0)
 Device.set_defaults(connection_timeout=20.0)
 

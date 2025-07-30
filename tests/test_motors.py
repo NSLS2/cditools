@@ -6,6 +6,7 @@ from collections.abc import Generator
 from subprocess import PIPE, Popen
 
 import pytest
+from ophyd import Device, EpicsSignal
 
 from cditools.motors import (
     BCU,
@@ -20,6 +21,10 @@ from cditools.motors import (
     KB,
     VPM,
 )
+
+
+EpicsSignal.set_defaults(timeout=20.0, connection_timeout=20.0, write_timeout=20.0)
+Device.set_defaults(connection_timeout=20.0)
 
 
 @pytest.fixture(scope="session")

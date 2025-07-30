@@ -37,7 +37,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/b9/54/dd730b32ea14ea797530a4479b2ed46a6fb250f682a9cfb997e968bf0261/networkx-3.4.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/aa/fc/ebfd32c3e124e6a1043e19c0ab0769818aa69050ce5589b63d05ff185526/numpy-2.2.5-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/12/f2/89ea3361a305466bc6460a532188830351220b5f0851a5fa133155c16eca/opentelemetry_api-1.32.1-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/f2/5e/f5ded172af40b7e7ae60697a2b2096cec53e45344edce41e91a74425473c/ophyd-1.10.5-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/fa/b3/1e63820f1a4df7854e33f0c3c5fa6be758c7fb7ea007ae9c8b9b35f48690/ophyd-1.10.7-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b7/16/bd2f5904557265882108dc2e04f18abc05ab0c2b7082ae9430091daf1d5c/Pint-0.24.4-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/6d/45/59578566b3275b8fd9157885918fcd0c4d74162928a5310926887b856a51/platformdirs-4.3.7-py3-none-any.whl
@@ -99,7 +99,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/1d/1b658dbd2b9fa9c4c9f32accbfc0205d532c8c6194dc0f2a4c0428e7128a/nodeenv-1.9.1-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/aa/fc/ebfd32c3e124e6a1043e19c0ab0769818aa69050ce5589b63d05ff185526/numpy-2.2.5-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/12/f2/89ea3361a305466bc6460a532188830351220b5f0851a5fa133155c16eca/opentelemetry_api-1.32.1-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/f2/5e/f5ded172af40b7e7ae60697a2b2096cec53e45344edce41e91a74425473c/ophyd-1.10.5-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/fa/b3/1e63820f1a4df7854e33f0c3c5fa6be758c7fb7ea007ae9c8b9b35f48690/ophyd-1.10.7-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/e8/31/aa8da88ca0eadbabd0a639788a6da13bb2ff6edbbb9f29aa786450a30a91/pandas-2.2.3-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/c6/ac/dac4a63f978e4dcb3c6d3a78c4d8e0192a113d288502a1216950c41b1027/parso-0.8.4-py2.py3-none-any.whl
@@ -181,7 +181,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/b9/54/dd730b32ea14ea797530a4479b2ed46a6fb250f682a9cfb997e968bf0261/networkx-3.4.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/aa/fc/ebfd32c3e124e6a1043e19c0ab0769818aa69050ce5589b63d05ff185526/numpy-2.2.5-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/12/f2/89ea3361a305466bc6460a532188830351220b5f0851a5fa133155c16eca/opentelemetry_api-1.32.1-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/f2/5e/f5ded172af40b7e7ae60697a2b2096cec53e45344edce41e91a74425473c/ophyd-1.10.5-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/fa/b3/1e63820f1a4df7854e33f0c3c5fa6be758c7fb7ea007ae9c8b9b35f48690/ophyd-1.10.7-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b7/16/bd2f5904557265882108dc2e04f18abc05ab0c2b7082ae9430091daf1d5c/Pint-0.24.4-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/6d/45/59578566b3275b8fd9157885918fcd0c4d74162928a5310926887b856a51/platformdirs-4.3.7-py3-none-any.whl
@@ -248,7 +248,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/b9/54/dd730b32ea14ea797530a4479b2ed46a6fb250f682a9cfb997e968bf0261/networkx-3.4.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/aa/fc/ebfd32c3e124e6a1043e19c0ab0769818aa69050ce5589b63d05ff185526/numpy-2.2.5-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/12/f2/89ea3361a305466bc6460a532188830351220b5f0851a5fa133155c16eca/opentelemetry_api-1.32.1-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/f2/5e/f5ded172af40b7e7ae60697a2b2096cec53e45344edce41e91a74425473c/ophyd-1.10.5-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/fa/b3/1e63820f1a4df7854e33f0c3c5fa6be758c7fb7ea007ae9c8b9b35f48690/ophyd-1.10.7-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b7/16/bd2f5904557265882108dc2e04f18abc05ab0c2b7082ae9430091daf1d5c/Pint-0.24.4-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/6d/45/59578566b3275b8fd9157885918fcd0c4d74162928a5310926887b856a51/platformdirs-4.3.7-py3-none-any.whl
@@ -380,14 +380,15 @@ packages:
   requires_python: '>=3.8'
 - pypi: .
   name: cditools
-  version: 0.1.dev34+ga046dfc.d20250710
-  sha256: dad64b187309de0f2f9b697f8c3db9aed41ac45331ac2cfc86122a070bb83645
+  version: 0.1.dev42+g156513b.d20250730
+  sha256: 9cd6f3f1c81072d40049cafcdbc62317a84242bf1cb69c494bcb4d0c2869b283
   requires_dist:
   - ophyd
   - h5py
   - pytest>=6 ; extra == 'test'
   - pytest-cov>=3 ; extra == 'test'
   - caproto[standard]>=0.4.2rc1,!=1.2.0 ; extra == 'test'
+  - ophyd>=1.10.6 ; extra == 'test'
   - caproto[standard]>=0.4.2rc1,!=1.2.0 ; extra == 'dev'
   - pytest>=6 ; extra == 'dev'
   - pytest-cov>=3 ; extra == 'dev'
@@ -396,6 +397,7 @@ packages:
   - ipython ; extra == 'dev'
   - ruff ; extra == 'dev'
   - pyright ; extra == 'dev'
+  - ophyd>=1.10.6 ; extra == 'dev'
   - sphinx>=7.0 ; extra == 'docs'
   - myst-parser>=0.13 ; extra == 'docs'
   - sphinx-copybutton ; extra == 'docs'
@@ -983,10 +985,10 @@ packages:
   - deprecated>=1.2.6
   - importlib-metadata>=6.0,<8.7.0
   requires_python: '>=3.8'
-- pypi: https://files.pythonhosted.org/packages/f2/5e/f5ded172af40b7e7ae60697a2b2096cec53e45344edce41e91a74425473c/ophyd-1.10.5-py3-none-any.whl
+- pypi: https://files.pythonhosted.org/packages/fa/b3/1e63820f1a4df7854e33f0c3c5fa6be758c7fb7ea007ae9c8b9b35f48690/ophyd-1.10.7-py3-none-any.whl
   name: ophyd
-  version: 1.10.5
-  sha256: 9acdc0b69b9f51bc8ee50cfaff11c18a5e089dd66f13ce8fe2ea57e291bf959a
+  version: 1.10.7
+  sha256: d34a385a603d6ee255507dd2992ccb72a4316b824bf226bd2c8d2f0ce825bfbe
   requires_dist:
   - networkx>=2.0
   - numpy
@@ -996,7 +998,7 @@ packages:
   - attrs>=19.3.0 ; extra == 'dev'
   - black==22.3.0 ; extra == 'dev'
   - bluesky>=1.11.0 ; extra == 'dev'
-  - caproto[standard]>=0.4.2rc1 ; extra == 'dev'
+  - caproto[standard]>=0.4.2rc1,!=1.2.0 ; extra == 'dev'
   - pytest-codecov ; extra == 'dev'
   - databroker>=1.0.0b1 ; extra == 'dev'
   - doctr ; extra == 'dev'

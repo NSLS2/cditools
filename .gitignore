@@ -160,3 +160,7 @@ Thumbs.db
 # pixi environments
 .pixi
 *.egg-info
+
+# IDEs
+.vscode/
+.cursor/

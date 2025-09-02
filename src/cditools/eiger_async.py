@@ -5,11 +5,11 @@ Ophyd Async implementation for Eiger detector.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Sequence, Iterator
 from logging import getLogger
 from pathlib import Path
 from typing import Annotated as A
-from typing import Any, Literal
+from typing import Any, cast
 from urllib.parse import urlunparse
 
 import numpy as np  # type: ignore[import-not-found]
@@ -18,11 +18,13 @@ from event_model import (  # type: ignore[import-untyped]
     ComposeStreamResource,
     ComposeStreamResourceBundle,
     DataKey,  # type: ignore[import-untyped]
+    StreamRange,
+    StreamResource,
+    StreamDatum,
 )
 from ophyd_async.core import (
     DetectorTrigger,
     HDFDatasetDescription,
-    HDFDocumentComposer,
     PathInfo,
     PathProvider,
     SignalDatatypeT,
@@ -36,11 +38,10 @@ from ophyd_async.epics.adcore import (
     ADBaseController,
     ADBaseDatasetDescriber,
     ADBaseIO,
-    ADFileWriteMode,
     ADImageMode,
     ADWriter,
     AreaDetector,
-    NDArrayBaseIO,
+    NDFileIO,
     NDPluginBaseIO,
 )
 from ophyd_async.epics.signal import PvSuffix
@@ -48,20 +49,15 @@ from ophyd_async.epics.signal import PvSuffix
 logger = getLogger(__name__)
 
 
-# TODO: Port to ophyd-async
-# ==============================================================================
-class HDFDatasetDescription2(HDFDatasetDescription):
-    join_method: Literal["stack", "concat"] = "concat"
-
-
-class HDFDocumentComposer2(HDFDocumentComposer):
+class EigerDocumentComposer:
     def __init__(
         self,
         full_file_name: Path,
-        datasets: list[HDFDatasetDescription2],
+        datasets: list[HDFDatasetDescription],
+        last_emitted_index: int = 0,
         hostname: str = "localhost",
     ) -> None:
-        self._last_emitted = 0
+        self._last_emitted = last_emitted_index
         self._hostname = hostname
         uri = urlunparse(
             (
@@ -82,7 +78,6 @@ class HDFDocumentComposer2(HDFDocumentComposer):
                 parameters={
                     "dataset": ds.dataset,
                     "chunk_shape": ds.chunk_shape,
-                    "join_method": ds.join_method,
                 },
                 uid=None,
                 validate=True,
@@ -90,30 +85,19 @@ class HDFDocumentComposer2(HDFDocumentComposer):
             for ds in datasets
         ]
 
+    def stream_resources(self) -> Iterator[StreamResource]:
+        for bundle in self._bundles:
+            yield bundle.stream_resource_doc
 
-# ==============================================================================
-
-
-# TODO: Port to ophyd-async (https://github.com/bluesky/ophyd-async/issues/961)
-# ==============================================================================
-class NDFileIO(NDArrayBaseIO):
-    file_path: A[SignalRW[str], PvSuffix.rbv("FilePath")]
-    file_name: A[SignalRW[str], PvSuffix.rbv("FileName")]
-    file_path_exists: A[SignalR[bool], PvSuffix("FilePathExists_RBV")]
-    file_template: A[SignalRW[str], PvSuffix.rbv("FileTemplate")]
-    full_file_name: A[SignalR[str], PvSuffix("FullFileName_RBV")]
-    file_number: A[SignalRW[int], PvSuffix("FileNumber")]
-    auto_increment: A[SignalRW[bool], PvSuffix("AutoIncrement")]
-    file_write_mode: A[SignalRW[ADFileWriteMode], PvSuffix.rbv("FileWriteMode")]
-    num_capture: A[SignalRW[int], PvSuffix.rbv("NumCapture")]
-    num_captured: A[SignalR[int], PvSuffix("NumCaptured_RBV")]
-    capture: A[SignalRW[bool], PvSuffix.rbv("Capture")]
-    array_size0: A[SignalR[int], PvSuffix("ArraySize0")]
-    array_size1: A[SignalR[int], PvSuffix("ArraySize1")]
-    create_directory: A[SignalRW[int], PvSuffix("CreateDirectory")]
-
-
-# ==============================================================================
+    def stream_data(self, indices_written: int) -> Iterator[StreamDatum]:
+        if indices_written > self._last_emitted:
+            indices: StreamRange = {
+                "start": self._last_emitted,
+                "stop": indices_written,
+            }
+            self._last_emitted = indices_written
+            for bundle in self._bundles:
+                yield bundle.compose_stream_datum(indices)
 
 
 class EigerTriggerMode(StrictEnum):
@@ -376,7 +360,7 @@ class EigerWriter(ADWriter[EigerDriverIO]):  # type: ignore[reportInvalidTypeArg
         )
 
         self._file_info: PathInfo | None = None
-        self._datasets: list[HDFDatasetDescription2] = []
+        self._datasets: list[HDFDatasetDescription] = []
         self._master_file_path_cache: list[Path] = []
 
     async def open(self, name: str, exposures_per_event: int = 1) -> dict[str, DataKey]:
@@ -500,14 +484,18 @@ class EigerWriter(ADWriter[EigerDriverIO]):  # type: ignore[reportInvalidTypeArg
         #    ),
         # ]
 
+        if any(s is None for s in detector_shape):
+            chunk_shape = (1,)
+        else:
+            chunk_shape = cast(tuple[int, ...], (1, *detector_shape))
         frame_datasets = [
-            HDFDatasetDescription2(
+            HDFDatasetDescription(
                 data_key=f"{name}_image",
                 dataset=f"entry/data/data_{1:06d}",
                 shape=(exposures_per_event, *detector_shape),
                 # Always write as uint32
                 dtype_numpy=np.dtype(np.uint32).str,
-                chunk_shape=(1, *detector_shape),
+                chunk_shape=chunk_shape,
             )
         ]
 
@@ -536,7 +524,7 @@ class EigerWriter(ADWriter[EigerDriverIO]):  # type: ignore[reportInvalidTypeArg
             )
             return None
         sequence_id = await self.fileio.sequence_id.get_value()
-        return (
+        return Path(
             self._file_info.directory_path
             / f"{self._file_info.filename}_{sequence_id}_master.h5"
         )
@@ -554,12 +542,11 @@ class EigerWriter(ADWriter[EigerDriverIO]):  # type: ignore[reportInvalidTypeArg
             # Eiger generates a new master file for each trigger
             # so we need to create a new composer with a new
             # master file path
-            composer = HDFDocumentComposer2(
+            composer = EigerDocumentComposer(
                 master_file_path,
                 self._datasets,
+                last_emitted_index=indices_written - 1,
             )
-            # TODO: Make public
-            composer._last_emitted = indices_written - 1  # type: ignore[reportPrivateUsage]
 
             # For later validation
             self._master_file_path_cache.append(master_file_path)

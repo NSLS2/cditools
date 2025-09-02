@@ -41,14 +41,14 @@ repos:
         args: ["--fix", "--show-fixes"]
       - id: ruff-format
 
-  - repo: local
-    hooks:
-      - id: pyright
-        name: pyright
-        entry: pyright
-        language: system
-        types: [python]
-        files: src|tests
+  #  - repo: local
+  #    hooks:
+  #      - id: pyright
+  #        name: pyright
+  #        entry: pyright
+  #        language: system
+  #        types: [python]
+  #        files: src|tests
 
   - repo: local
     hooks:

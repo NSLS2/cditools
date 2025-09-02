@@ -5,7 +5,7 @@ Ophyd Async implementation for Eiger detector.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator, Sequence, Iterator
+from collections.abc import AsyncGenerator, AsyncIterator, Iterator, Sequence
 from logging import getLogger
 from pathlib import Path
 from typing import Annotated as A
@@ -18,9 +18,9 @@ from event_model import (  # type: ignore[import-untyped]
     ComposeStreamResource,
     ComposeStreamResourceBundle,
     DataKey,  # type: ignore[import-untyped]
+    StreamDatum,
     StreamRange,
     StreamResource,
-    StreamDatum,
 )
 from ophyd_async.core import (
     DetectorTrigger,

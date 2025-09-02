@@ -44,6 +44,7 @@ test = [
   "caproto[standard] >=0.4.2rc1,!=1.2.0",
   "tiled[minimal-client]",
   "tiled[minimal-server]",
+  "ophyd >=v1.10.6",
 ]
 dev = [
   "caproto[standard] >=0.4.2rc1,!=1.2.0",
@@ -57,6 +58,9 @@ dev = [
   "aioca",
   "tiled[minimal-client,server]",
   "pyright",
+  "ophyd >=v1.10.6",
+  "twine",
+  "build"
 ]
 docs = [
   "sphinx>=7.0",
@@ -71,6 +75,9 @@ Homepage = "https://github.com/nsls2/cditools"
 "Bug Tracker" = "https://github.com/nsls2/cditools/issues"
 Discussions = "https://github.com/nsls2/cditools/discussions"
 Changelog = "https://github.com/nsls2/cditools/releases"
+
+[project.license]
+file = "LICENSE"
 
 [project.scripts]
 black-hole-ioc = "cditools.simulated.black_hole:main"
@@ -112,6 +119,7 @@ reportMissingTypeStubs = false
 reportUnknownMemberType = false
 reportUnknownArgumentType = false
 reportUnknownVariableType = false
+reportUntypedBaseClass = false
 
 [tool.ruff]
 

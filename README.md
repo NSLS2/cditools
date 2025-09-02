@@ -25,3 +25,14 @@
 [rtd-link]:                 https://cditools.readthedocs.io/en/latest/?badge=latest
 
 <!-- prettier-ignore-end -->
+
+## Overview
+
+Set of tools for operating the
+[CDI beamline](https://www.bnl.gov/nsls2/beamlines/beamline.php?r=9-ID) at the
+[National Synchrotron Light Source II (NSLS-II)](https://www.bnl.gov/nsls2/).
+
+## See Also
+
+- [NSLS2/cdi-profile-collection](https://github.com/NSLS2/cdi-profile-collection)
+  for where this package is used in practice

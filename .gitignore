@@ -161,6 +161,6 @@ Thumbs.db
 .pixi
 *.egg-info
 
-# IDE files
+# IDEs
 .vscode/
 .cursor/

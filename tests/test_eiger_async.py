@@ -569,8 +569,7 @@ async def test_eiger_detector_with_RE(
     uid = RE(bp.count([mock_eiger_detector]))
     assert uid is not None
     assert (
-        tiled_client.values().last()["primary"]["test_eiger_image"].read()
-        is not None
+        tiled_client.values().last()["primary"]["test_eiger_image"].read() is not None
     )
     assert tiled_client.values().last()["streams"]["primary"][
         "test_eiger_image"

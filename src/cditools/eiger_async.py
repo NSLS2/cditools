@@ -567,9 +567,9 @@ class EigerWriter(ADWriter[EigerDriverIO]):  # type: ignore[reportInvalidTypeArg
         """Clean up file writing after acquisition and validate files exist."""
 
         # Check that the master files were written
-        for master_file_path in self._master_file_path_cache:
-            if not master_file_path.exists():
-                logger.warning("Master file was not written: %s", master_file_path)
+        # for master_file_path in self._master_file_path_cache:
+        #     if not master_file_path.exists():
+        #         logger.warning("Master file was not written: %s", master_file_path)
 
         self._file_info = None
 

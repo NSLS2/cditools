@@ -52,15 +52,15 @@ class I404EM(QuadEM):
     # ch3_range = Cpt(EpicsSignal, 'Ch3:Range-I')
 
 # I400
-em2_sys = 'XF:09IDA-BI'
-em2_dev = '{i400:1}'
+ema_sys = 'XF:09IDA-BI'
+ema_dev = '{i400:1}'
 # I404
-em3_sys = 'XF:09IDB-BI'
-em3_dev = '{i404:1}'
+emb_sys = 'XF:09IDB-BI'
+emb_dev = '{i404:1}'
 # F460
-em1_sys = 'XF:09IDC-BI'
-em1_dev = '{f460:1}'
+emc_sys = 'XF:09IDC-BI'
+emc_dev = '{f460:1}'
 
-em1 = F460EM(prefix=f"{em1_sys}{em1_dev}")
-em2 = I400EM(prefix=f"{em2_sys}{em2_dev}")
-em1 = I404EM(prefix=f"{em3_sys}{em3_dev}")
+emc = F460EM(prefix=f"{emc_sys}{emc_dev}", name="emc")
+ema = I400EM(prefix=f"{ema_sys}{ema_dev}", name="ema")
+emb = I404EM(prefix=f"{emb_sys}{emb_dev}", name="emb")

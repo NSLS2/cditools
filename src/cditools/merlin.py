@@ -129,6 +129,7 @@ class CDIMerlinDetector(CDIModalTrigger, MerlinDetector):
         "HDF1:",
         read_attrs=[],
         configuration_attrs=[],
+        write_path_template = '',
         root="/nsls2/data/cdi/proposals/",
     )
 

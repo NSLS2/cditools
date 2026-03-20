@@ -171,9 +171,9 @@ class CDIMerlinDetector(CDIModalTrigger, MerlinDetector):
         )
 
     def _update_paths(self):
-        self.write_path_template = self.root_path_str() + "%Y/%m/%d/"
-        self.read_path_template = self.root_path_str() + "%Y/%m/%d/"
-        self.reg_root = self.root_path_str()
+        self.write_path_template = self.root_path_str + "%Y/%m/%d/"
+        self.read_path_template = self.root_path_str + "%Y/%m/%d/"
+        self.reg_root = self.root_path_str
 
     @property
     def root_path_str(self):

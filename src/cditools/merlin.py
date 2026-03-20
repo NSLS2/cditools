@@ -129,10 +129,10 @@ class CDIMerlinDetector(CDIModalTrigger, MerlinDetector):
         "HDF1:",
         read_attrs=[],
         configuration_attrs=[],
-        write_path_template="/nsls2/data/tst/legacy/mock-proposals/2025-2/pass-56789/assets/merlin/%Y/%m/%d",
-        root="/nsls2/data/tst/legacy/mock-proposals/2025-2/pass-56789/assets/merlin",
+        root="/nsls2/data/cdi/proposals/",
     )
 
+    _asset_path = "merlinES-1"
     proc1 = Cpt(ProcessPlugin, "Proc1:")
     stats1 = Cpt(StatsPlugin, "Stats1:")
     stats2 = Cpt(StatsPlugin, "Stats2:")
@@ -169,9 +169,17 @@ class CDIMerlinDetector(CDIModalTrigger, MerlinDetector):
             **kwargs,
         )
 
+    def _update_paths(self):
+        self.write_path_template = self.root_path_str + "%Y/%m/%d/"
+        self.read_path_template = self.root_path_str + "%Y/%m/%d/"
+        self.reg_root = self.root_path_str
+
+    @property
+    def root_path_str(self):
+        return f"{self.root_str}/{self._md['cycle']}/{self._md['data_session']}/assets/{self._asset_path}"
+
     def mode_internal(self) -> None:
         super().mode_internal()
-
         count_time = self.count_time.get()
         if isinstance(count_time, float):
             self.stage_sigs[self.cam.acquire_time] = count_time
@@ -179,7 +187,6 @@ class CDIMerlinDetector(CDIModalTrigger, MerlinDetector):
 
     def mode_external(self) -> None:
         super().mode_external()
-
         # NOTE: these values specify a debounce time for external triggering so
         #       they should be set to < 0.5 the expected exposure time, or at
         #       minimum the lowest possible dead time = 1.64ms
@@ -189,3 +196,14 @@ class CDIMerlinDetector(CDIModalTrigger, MerlinDetector):
         self.stage_sigs[self.cam.acquire_period] = expected_exposure + min_dead_time
 
         self.cam.stage_sigs[self.cam.trigger_mode] = "Trigger Enable"
+
+    def stage(self):
+        self._update_paths()
+        _TIMEOUT = 2
+        self.cam.array_counter.set(0, timeout=_TIMEOUT).wait()
+        self.stage_sigs[self.cam.trigger_mode] = 0
+
+        return super().stage()
+
+    def unstage(self):
+        return super().unstage()

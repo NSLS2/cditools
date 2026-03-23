@@ -31,7 +31,6 @@ __all__ = [
     "MerlinDetector",
     "MerlinDriverIO",
     "MerlinTriggerLogic",
-    "MerlinTriggerMode",
 ]
 
 _MIN_DEAD_TIME = 0.002

@@ -15,6 +15,8 @@ from ophyd_async.core import (
     SignalR,
     SignalRW,
     StrictEnum,
+    SubsetEnum,
+    soft_signal_rw
 )
 from ophyd_async.epics.adcore import (
     ADArmLogic,
@@ -22,6 +24,7 @@ from ophyd_async.epics.adcore import (
     ADWriterType,
     AreaDetector,
     NDPluginBaseIO,
+    ADBaseDataType,
     prepare_exposures,
     trigger_info_from_num_images,
 )
@@ -36,7 +39,7 @@ __all__ = [
 _MIN_DEAD_TIME = 0.002
 
 
-class MerlinTriggerMode(StrictEnum):
+class MerlinTriggerMode(SubsetEnum):
     """Trigger modes for the Merlin detector"""
 
     INTERNAL = "Internal"
@@ -46,6 +49,15 @@ class MerlinTriggerMode(StrictEnum):
     TRIGGER_BOTH_RISING = "Trigger both rising"
     SOFTWARE = "Software"
 
+# class MerlinTriggerModeRBV(SubsetEnum):
+#     """Trigger modes for the Merlin detector"""
+
+#     INTERNAL = "Internal"
+#     TRIGGER_ENABLE = "Trigger Enable"
+#     TRIGGER_START_RISING = "Trigger start rising"
+#     TRIGGER_START_FALLING = "Trigger start falling"
+#     TRIGGER_BOTH_RISING = "Trigger both rising "
+#     SOFTWARE = "Software"
 
 class MerlinTriggerModeRBV(StrictEnum):
     """Trigger modes for the Merlin detector"""
@@ -66,6 +78,12 @@ class MerlinDriverIO(ADBaseIO):
     """
 
     trigger_mode: A[SignalRW[MerlinTriggerMode], PvSuffix.rbv("TriggerMode")]
+
+    # Since ADMerlin doesn't set the data type readback correctly, but is always uint16, 
+    # just turn it into a static soft signal
+    def __init__(self, prefix: str, name: str = ""):
+        super().__init__(prefix, name=name)
+        self.data_type = soft_signal_rw(ADBaseDataType, ADBaseDataType.UINT16, name="data_type")
 
 
 # The deadtime of an Merlin controller varies depending on the exact model of camera.
@@ -130,3 +148,4 @@ class MerlinDetector(AreaDetector[MerlinDriverIO]):
             config_sigs=config_sigs,
             name=name,
         )
+

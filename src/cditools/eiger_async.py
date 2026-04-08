@@ -37,7 +37,7 @@ from ophyd_async.core import (
 from ophyd_async.epics.adcore import (
     #ADBaseController,
     #ADBaseDatasetDescriber,
-    #ADBaseIO,
+    ADBaseIO,
     ADImageMode,
     #ADWriter,
     AreaDetector,

@@ -24,7 +24,6 @@ from event_model import (  # type: ignore[import-untyped]
 )
 from ophyd_async.core import (
     DetectorTrigger,
-    HDFDatasetDescription,
     PathInfo,
     PathProvider,
     SignalDatatypeT,
@@ -54,7 +53,7 @@ class EigerDocumentComposer:
     def __init__(
         self,
         full_file_name: Path,
-        datasets: list[HDFDatasetDescription],
+        datasets: list[Any],
         last_emitted_index: int = 0,
         hostname: str = "localhost",
     ) -> None:
@@ -357,7 +356,7 @@ class EigerWriter(ADWriter[EigerDriverIO]):  # type: ignore[reportInvalidTypeArg
         )
 
         self._file_info: PathInfo | None = None
-        self._datasets: list[HDFDatasetDescription] = []
+        self._datasets: list[Any] = []
         self._master_file_path_cache: list[Path] = []
 
     async def open(self, name: str, exposures_per_event: int = 1) -> dict[str, DataKey]:
@@ -485,16 +484,16 @@ class EigerWriter(ADWriter[EigerDriverIO]):  # type: ignore[reportInvalidTypeArg
             chunk_shape = (1,)
         else:
             chunk_shape = cast(tuple[int, ...], (1, *detector_shape))
-        frame_datasets = [
-            HDFDatasetDescription(
-                data_key=f"{name}_image",
-                dataset=f"entry/data/data_{1:06d}",
-                shape=(exposures_per_event, *detector_shape),
-                # Always write as uint32
-                dtype_numpy=np.dtype(np.uint32).str,
-                chunk_shape=chunk_shape,
-            )
-        ]
+        # frame_datasets = [
+        #     HDFDatasetDescription(
+        #         data_key=f"{name}_image",
+        #         dataset=f"entry/data/data_{1:06d}",
+        #         shape=(exposures_per_event, *detector_shape),
+        #         # Always write as uint32
+        #         dtype_numpy=np.dtype(np.uint32).str,
+        #         chunk_shape=chunk_shape,
+        #     )
+        # ]
 
         # Cache descriptions for later use
         self._datasets = master_datasets + frame_datasets

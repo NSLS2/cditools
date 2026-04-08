@@ -322,6 +322,7 @@ class Eiger2DriverIO(EigerDriverIO):
 
     # Readout Setup
     signed_data: A[SignalRW[bool], PvSuffix.rbv("SignedData")]
+    data_type_setup: A[SignalRW[str], PvSuffix.rbv("DataTypeSetup")]
 
     # Stream Interface
     stream_version: A[SignalRW[EigerStreamVersion], PvSuffix.rbv("StreamVersion")]

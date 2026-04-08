@@ -41,7 +41,7 @@ from ophyd_async.epics.adcore import (
     ADImageMode,
     #ADWriter,
     AreaDetector,
-    #NDFileIO,
+    NDFileIO,
     NDPluginBaseIO,
 )
 from ophyd_async.epics.signal import PvSuffix

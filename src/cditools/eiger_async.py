@@ -4,16 +4,16 @@ Ophyd Async implementation for Eiger detector.
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator, Iterator, Sequence
+# import asyncio
+# from collections.abc import AsyncGenerator, AsyncIterator, Iterator, Sequence
 from logging import getLogger
-from pathlib import Path
+# from pathlib import Path
 from typing import Annotated as A
-from typing import Any, cast
-from urllib.parse import urlunparse
+# from typing import Any, cast
+# from urllib.parse import urlunparse
 
 import numpy as np  # type: ignore[import-not-found]
-from bluesky.protocols import StreamAsset
+# from bluesky.protocols import StreamAsset
 # from event_model import (  # type: ignore[import-untyped]
 #     ComposeStreamResource,
 #     ComposeStreamResourceBundle,
@@ -25,8 +25,8 @@ from bluesky.protocols import StreamAsset
 from ophyd_async.core import (
     # DetectorTrigger,
     # PathInfo,
-    PathProvider,
-    SignalDatatypeT,
+    # PathProvider,
+    # SignalDatatypeT,
     SignalR,
     SignalRW,
     StrictEnum,
@@ -40,9 +40,9 @@ from ophyd_async.epics.adcore import (
     ADBaseIO,
     #ADImageMode,
     #ADWriter,
-    AreaDetector,
+    # AreaDetector,
     NDFileIO,
-    NDPluginBaseIO,
+    # NDPluginBaseIO,
 )
 from ophyd_async.epics.signal import PvSuffix
 
@@ -625,44 +625,44 @@ class Eiger2DriverIO(EigerDriverIO):
 #         )
 
 
-class EigerDetector(AreaDetector[EigerController]):
-    """Eiger detector implementation using the AreaDetector pattern."""
+# class EigerDetector(AreaDetector[EigerController]):
+#     """Eiger detector implementation using the AreaDetector pattern."""
 
-    def __init__(
-        self,
-        prefix: str,
-        path_provider: PathProvider,
-        driver_suffix: str = "cam1:",
-        writer_cls: type[ADWriter] = EigerWriter,  # type: ignore[reportUnknownParameterType]
-        fileio_suffix: str | None = None,
-        name: str = "",
-        config_sigs: Sequence[SignalR[SignalDatatypeT]] = (),
-        plugins: dict[str, NDPluginBaseIO] | None = None,
-    ):
-        driver = EigerDriverIO(prefix + driver_suffix)
-        controller = EigerController(driver)
-        if issubclass(writer_cls, EigerWriter):
-            dataset_describer = ADBaseDatasetDescriber(driver)
-            # EigerWriter takes the driver as the fileio, since it relies on driver PVs
-            writer = writer_cls(
-                driver,
-                path_provider,
-                dataset_describer=dataset_describer,
-                plugins=plugins,
-            )
-        else:
-            writer = writer_cls.with_io(
-                prefix,
-                path_provider,
-                dataset_source=driver,
-                fileio_suffix=fileio_suffix,
-                plugins=plugins,
-            )
+#     def __init__(
+#         self,
+#         prefix: str,
+#         path_provider: PathProvider,
+#         driver_suffix: str = "cam1:",
+#         writer_cls: type[ADWriter] = EigerWriter,  # type: ignore[reportUnknownParameterType]
+#         fileio_suffix: str | None = None,
+#         name: str = "",
+#         config_sigs: Sequence[SignalR[SignalDatatypeT]] = (),
+#         plugins: dict[str, NDPluginBaseIO] | None = None,
+#     ):
+#         driver = EigerDriverIO(prefix + driver_suffix)
+#         controller = EigerController(driver)
+#         if issubclass(writer_cls, EigerWriter):
+#             dataset_describer = ADBaseDatasetDescriber(driver)
+#             # EigerWriter takes the driver as the fileio, since it relies on driver PVs
+#             writer = writer_cls(
+#                 driver,
+#                 path_provider,
+#                 dataset_describer=dataset_describer,
+#                 plugins=plugins,
+#             )
+#         else:
+#             writer = writer_cls.with_io(
+#                 prefix,
+#                 path_provider,
+#                 dataset_source=driver,
+#                 fileio_suffix=fileio_suffix,
+#                 plugins=plugins,
+#             )
 
-        super().__init__(
-            controller=controller,
-            writer=writer,
-            plugins=plugins,
-            name=name,
-            config_sigs=config_sigs,
-        )
+#         super().__init__(
+#             controller=controller,
+#             writer=writer,
+#             plugins=plugins,
+#             name=name,
+#             config_sigs=config_sigs,
+#         )

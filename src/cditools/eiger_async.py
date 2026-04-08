@@ -268,7 +268,6 @@ class EigerDriverIO(ADBaseIO, NDFileIO):
     beam_y: A[SignalRW[float], PvSuffix.rbv("BeamY")]
     det_dist: A[SignalRW[float], PvSuffix.rbv("DetDist")]
     wavelength: A[SignalRW[float], PvSuffix.rbv("Wavelength")]
-    data_type_setup: A[SignalRW[str], PvSuffix.rbv("DataTypeSetup")]
 
     # Detector Metadata
     chi_start: A[SignalRW[float], PvSuffix.rbv("ChiStart")]
@@ -323,7 +322,6 @@ class Eiger2DriverIO(EigerDriverIO):
 
     # Readout Setup
     signed_data: A[SignalRW[bool], PvSuffix.rbv("SignedData")]
-    data_type_setup: A[SignalRW[str], PvSuffix.rbv("DataTypeSetup")]
 
     # Stream Interface
     stream_version: A[SignalRW[EigerStreamVersion], PvSuffix.rbv("StreamVersion")]

@@ -14,32 +14,32 @@ from urllib.parse import urlunparse
 
 import numpy as np  # type: ignore[import-not-found]
 from bluesky.protocols import StreamAsset
-from event_model import (  # type: ignore[import-untyped]
-    ComposeStreamResource,
-    ComposeStreamResourceBundle,
-    DataKey,  # type: ignore[import-untyped]
-    StreamDatum,
-    StreamRange,
-    StreamResource,
-)
+# from event_model import (  # type: ignore[import-untyped]
+#     ComposeStreamResource,
+#     ComposeStreamResourceBundle,
+#     DataKey,  # type: ignore[import-untyped]
+#     StreamDatum,
+#     StreamRange,
+#     StreamResource,
+# )
 from ophyd_async.core import (
-    DetectorTrigger,
-    PathInfo,
+    # DetectorTrigger,
+    # PathInfo,
     PathProvider,
     SignalDatatypeT,
     SignalR,
     SignalRW,
     StrictEnum,
     SubsetEnum,
-    TriggerInfo,
-    observe_value,
+    # TriggerInfo,
+    # observe_value,
 )
 from ophyd_async.epics.adcore import (
     #ADBaseController,
     #ADBaseDatasetDescriber,
     ADBaseIO,
-    ADImageMode,
-    ADWriter,
+    #ADImageMode,
+    #ADWriter,
     AreaDetector,
     NDFileIO,
     NDPluginBaseIO,
@@ -49,55 +49,55 @@ from ophyd_async.epics.signal import PvSuffix
 logger = getLogger(__name__)
 
 
-class EigerDocumentComposer:
-    def __init__(
-        self,
-        full_file_name: Path,
-        datasets: list[Any],
-        last_emitted_index: int = 0,
-        hostname: str = "localhost",
-    ) -> None:
-        self._last_emitted = last_emitted_index
-        self._hostname = hostname
-        uri = urlunparse(
-            (
-                "file",
-                self._hostname,
-                str(full_file_name.absolute()),
-                "",
-                "",
-                None,
-            )
-        )
-        bundler_composer = ComposeStreamResource()
-        self._bundles: list[ComposeStreamResourceBundle] = [
-            bundler_composer(
-                mimetype="application/x-hdf5",
-                uri=uri,
-                data_key=ds.data_key,
-                parameters={
-                    "dataset": ds.dataset,
-                    "chunk_shape": ds.chunk_shape,
-                },
-                uid=None,
-                validate=True,
-            )
-            for ds in datasets
-        ]
+# class EigerDocumentComposer:
+#     def __init__(
+#         self,
+#         full_file_name: Path,
+#         datasets: list[Any],
+#         last_emitted_index: int = 0,
+#         hostname: str = "localhost",
+#     ) -> None:
+#         self._last_emitted = last_emitted_index
+#         self._hostname = hostname
+#         uri = urlunparse(
+#             (
+#                 "file",
+#                 self._hostname,
+#                 str(full_file_name.absolute()),
+#                 "",
+#                 "",
+#                 None,
+#             )
+#         )
+#         bundler_composer = ComposeStreamResource()
+#         self._bundles: list[ComposeStreamResourceBundle] = [
+#             bundler_composer(
+#                 mimetype="application/x-hdf5",
+#                 uri=uri,
+#                 data_key=ds.data_key,
+#                 parameters={
+#                     "dataset": ds.dataset,
+#                     "chunk_shape": ds.chunk_shape,
+#                 },
+#                 uid=None,
+#                 validate=True,
+#             )
+#             for ds in datasets
+#         ]
 
-    def stream_resources(self) -> Iterator[StreamResource]:
-        for bundle in self._bundles:
-            yield bundle.stream_resource_doc
+#     def stream_resources(self) -> Iterator[StreamResource]:
+#         for bundle in self._bundles:
+#             yield bundle.stream_resource_doc
 
-    def stream_data(self, indices_written: int) -> Iterator[StreamDatum]:
-        if indices_written > self._last_emitted:
-            indices: StreamRange = {
-                "start": self._last_emitted,
-                "stop": indices_written,
-            }
-            self._last_emitted = indices_written
-            for bundle in self._bundles:
-                yield bundle.compose_stream_datum(indices)
+#     def stream_data(self, indices_written: int) -> Iterator[StreamDatum]:
+#         if indices_written > self._last_emitted:
+#             indices: StreamRange = {
+#                 "start": self._last_emitted,
+#                 "stop": indices_written,
+#             }
+#             self._last_emitted = indices_written
+#             for bundle in self._bundles:
+#                 yield bundle.compose_stream_datum(indices)
 
 
 # TODO - add extra options in eiger2 and revert to StrictEnum
@@ -332,297 +332,297 @@ class Eiger2DriverIO(EigerDriverIO):
     fw_hdf5_format: A[SignalRW[EigerHDF5Format], PvSuffix.rbv("FWHDF5Format")]
 
 
-class EigerWriter(ADWriter[EigerDriverIO]):  # type: ignore[reportInvalidTypeArguments]
-    """Eiger-specific file writer using the built-in FileWriter interface."""
+# class EigerWriter(ADWriter[EigerDriverIO]):  # type: ignore[reportInvalidTypeArguments]
+#     """Eiger-specific file writer using the built-in FileWriter interface."""
 
-    default_suffix: str = "cam1:"
-    # Forced minimum number of images per file to force a single HDF5 file
-    _min_num_images_per_file: int = 1_000_000_000
+#     default_suffix: str = "cam1:"
+#     # Forced minimum number of images per file to force a single HDF5 file
+#     _min_num_images_per_file: int = 1_000_000_000
 
-    def __init__(
-        self,
-        fileio: EigerDriverIO,
-        path_provider: PathProvider,
-        dataset_describer: ADBaseDatasetDescriber,
-        plugins: dict[str, NDPluginBaseIO] | None = None,
-    ):
-        super().__init__(
-            fileio,
-            path_provider,
-            dataset_describer,
-            file_extension=".h5",
-            mimetype="application/x-hdf5",
-            plugins=plugins,
-        )
+#     def __init__(
+#         self,
+#         fileio: EigerDriverIO,
+#         path_provider: PathProvider,
+#         dataset_describer: ADBaseDatasetDescriber,
+#         plugins: dict[str, NDPluginBaseIO] | None = None,
+#     ):
+#         super().__init__(
+#             fileio,
+#             path_provider,
+#             dataset_describer,
+#             file_extension=".h5",
+#             mimetype="application/x-hdf5",
+#             plugins=plugins,
+#         )
 
-        self._file_info: PathInfo | None = None
-        self._datasets: list[Any] = []
-        self._master_file_path_cache: list[Path] = []
+#         self._file_info: PathInfo | None = None
+#         self._datasets: list[Any] = []
+#         self._master_file_path_cache: list[Path] = []
 
-    async def open(self, name: str, exposures_per_event: int = 1) -> dict[str, DataKey]:
-        """Setup file writing for acquisition."""
-        # Get file path info from path provider
-        self._file_info = self._path_provider()
-        self._master_file_path_cache.clear()
+#     async def open(self, name: str, exposures_per_event: int = 1) -> dict[str, DataKey]:
+#         """Setup file writing for acquisition."""
+#         # Get file path info from path provider
+#         self._file_info = self._path_provider()
+#         self._master_file_path_cache.clear()
 
-        # Cache for use later
-        self._exposures_per_event = exposures_per_event
+#         # Cache for use later
+#         self._exposures_per_event = exposures_per_event
 
-        # Set the name pattern with $id replacement similar to original
-        name_pattern = f"{self._file_info.filename}_$id"
+#         # Set the name pattern with $id replacement similar to original
+#         name_pattern = f"{self._file_info.filename}_$id"
 
-        # Configure the Eiger FileWriter
-        await asyncio.gather(
-            self.fileio.file_path.set(self._file_info.directory_path.as_posix()),
-            self.fileio.create_directory.set(self._file_info.create_dir_depth),
-            self.fileio.fw_name_pattern.set(name_pattern),
-            self.fileio.fw_enable.set(True),
-            self.fileio.save_files.set(True),
-            self.fileio.data_source.set(EigerDataSource.FILE_WRITER),
-            self.fileio.num_capture.set(0),
-            # Use array_counter to track the total number of images written
-            self.fileio.array_counter.set(0),
-        )
+#         # Configure the Eiger FileWriter
+#         await asyncio.gather(
+#             self.fileio.file_path.set(self._file_info.directory_path.as_posix()),
+#             self.fileio.create_directory.set(self._file_info.create_dir_depth),
+#             self.fileio.fw_name_pattern.set(name_pattern),
+#             self.fileio.fw_enable.set(True),
+#             self.fileio.save_files.set(True),
+#             self.fileio.data_source.set(EigerDataSource.FILE_WRITER),
+#             self.fileio.num_capture.set(0),
+#             # Use array_counter to track the total number of images written
+#             self.fileio.array_counter.set(0),
+#         )
 
-        if not await self.fileio.file_path_exists.get_value():
-            msg = f"File path {self._file_info.directory_path} does not exist"
-            raise FileNotFoundError(msg)
+#         if not await self.fileio.file_path_exists.get_value():
+#             msg = f"File path {self._file_info.directory_path} does not exist"
+#             raise FileNotFoundError(msg)
 
-        if isinstance(self.fileio, Eiger2DriverIO):
-            await self.fileio.fw_hdf5_format.set(EigerHDF5Format.LEGACY)
+#         if isinstance(self.fileio, Eiger2DriverIO):
+#             await self.fileio.fw_hdf5_format.set(EigerHDF5Format.LEGACY)
 
-        # Force the number of images per file to a large number to simplify the logic
-        num_images_per_file = await self.fileio.fw_nimgs_per_file.get_value()
-        if num_images_per_file < self._min_num_images_per_file:
-            await self.fileio.fw_nimgs_per_file.set(self._min_num_images_per_file)
-            logger.warning(
-                "Setting fw_nimgs_per_file to %d to force writing to a single HDF5 file",
-                self._min_num_images_per_file,
-            )
+#         # Force the number of images per file to a large number to simplify the logic
+#         num_images_per_file = await self.fileio.fw_nimgs_per_file.get_value()
+#         if num_images_per_file < self._min_num_images_per_file:
+#             await self.fileio.fw_nimgs_per_file.set(self._min_num_images_per_file)
+#             logger.warning(
+#                 "Setting fw_nimgs_per_file to %d to force writing to a single HDF5 file",
+#                 self._min_num_images_per_file,
+#             )
 
-        detector_shape = await self._dataset_describer.shape()
+#         detector_shape = await self._dataset_describer.shape()
 
-        # TODO: Add these when empty shape datasets are supported by tiled
-        # Add the master file datasets
-        master_datasets = []
-        # master_datasets = [
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_y_pixel_size",
-        #        dataset="entry/instrument/detector/y_pixel_size",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_x_pixel_size",
-        #        dataset="entry/instrument/detector/x_pixel_size",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_detector_distance",
-        #        dataset="entry/instrument/detector/detector_distance",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_incident_wavelength",
-        #        dataset="entry/instrument/detector/incident_wavelength",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_frame_time",
-        #        dataset="entry/instrument/detector/frame_time",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_beam_center_x",
-        #        dataset="entry/instrument/detector/beam_center_x",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_beam_center_y",
-        #        dataset="entry/instrument/detector/beam_center_y",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_count_time",
-        #        dataset="entry/instrument/detector/count_time",
-        #        shape=(),
-        #        dtype_numpy=np.dtype(np.float32).str,
-        #        chunk_shape=(),
-        #        join_method="stack",
-        #    ),
-        #    HDFDatasetDescription2(
-        #        data_key=f"{name}_pixel_mask",
-        #        dataset="entry/instrument/detector/detectorSpecific/pixel_mask",
-        #        shape=detector_shape,
-        #        dtype_numpy=np.dtype(np.uint32).str,
-        #        chunk_shape=detector_shape,
-        #        join_method="stack",
-        #    ),
-        # ]
+#         # TODO: Add these when empty shape datasets are supported by tiled
+#         # Add the master file datasets
+#         master_datasets = []
+#         # master_datasets = [
+#         #    HDFDatasetDescription2(
+#         #        data_key=f"{name}_y_pixel_size",
+#         #        dataset="entry/instrument/detector/y_pixel_size",
+#         #        shape=(),
+#         #        dtype_numpy=np.dtype(np.float32).str,
+#         #        chunk_shape=(),
+#         #        join_method="stack",
+#         #    ),
+#         #    HDFDatasetDescription2(
+#         #        data_key=f"{name}_x_pixel_size",
+#         #        dataset="entry/instrument/detector/x_pixel_size",
+#         #        shape=(),
+#         #        dtype_numpy=np.dtype(np.float32).str,
+#         #        chunk_shape=(),
+#         #        join_method="stack",
+#         #    ),
+#         #    HDFDatasetDescription2(
+#         #        data_key=f"{name}_detector_distance",
+#         #        dataset="entry/instrument/detector/detector_distance",
+#         #        shape=(),
+#         #        dtype_numpy=np.dtype(np.float32).str,
+#         #        chunk_shape=(),
+#         #        join_method="stack",
+#         #    ),
+#         #    HDFDatasetDescription2(
+#         #        data_key=f"{name}_incident_wavelength",
+#         #        dataset="entry/instrument/detector/incident_wavelength",
+#         #        shape=(),
+#         #        dtype_numpy=np.dtype(np.float32).str,
+#         #        chunk_shape=(),
+#         #        join_method="stack",
+#         #    ),
+#         #    HDFDatasetDescription2(
+#         #        data_key=f"{name}_frame_time",
+#         #        dataset="entry/instrument/detector/frame_time",
+#         #        shape=(),
+#         #        dtype_numpy=np.dtype(np.float32).str,
+#         #        chunk_shape=(),
+#         #        join_method="stack",
+#         #    ),
+#         #    HDFDatasetDescription2(
+#         #        data_key=f"{name}_beam_center_x",
+#         #        dataset="entry/instrument/detector/beam_center_x",
+#         #        shape=(),
+#         #        dtype_numpy=np.dtype(np.float32).str,
+#         #        chunk_shape=(),
+#         #        join_method="stack",
+#         #    ),
+#         #    HDFDatasetDescription2(
+#         #        data_key=f"{name}_beam_center_y",
+#         #        dataset="entry/instrument/detector/beam_center_y",
+#         #        shape=(),
+#         #        dtype_numpy=np.dtype(np.float32).str,
+#         #        chunk_shape=(),
+#         #        join_method="stack",
+#         #    ),
+#         #    HDFDatasetDescription2(
+#         #        data_key=f"{name}_count_time",
+#         #        dataset="entry/instrument/detector/count_time",
+#         #        shape=(),
+#         #        dtype_numpy=np.dtype(np.float32).str,
+#         #        chunk_shape=(),
+#         #        join_method="stack",
+#         #    ),
+#         #    HDFDatasetDescription2(
+#         #        data_key=f"{name}_pixel_mask",
+#         #        dataset="entry/instrument/detector/detectorSpecific/pixel_mask",
+#         #        shape=detector_shape,
+#         #        dtype_numpy=np.dtype(np.uint32).str,
+#         #        chunk_shape=detector_shape,
+#         #        join_method="stack",
+#         #    ),
+#         # ]
 
-        if any(s is None for s in detector_shape):
-            chunk_shape = (1,)
-        else:
-            chunk_shape = cast(tuple[int, ...], (1, *detector_shape))
-        # frame_datasets = [
-        #     HDFDatasetDescription(
-        #         data_key=f"{name}_image",
-        #         dataset=f"entry/data/data_{1:06d}",
-        #         shape=(exposures_per_event, *detector_shape),
-        #         # Always write as uint32
-        #         dtype_numpy=np.dtype(np.uint32).str,
-        #         chunk_shape=chunk_shape,
-        #     )
-        # ]
+#         if any(s is None for s in detector_shape):
+#             chunk_shape = (1,)
+#         else:
+#             chunk_shape = cast(tuple[int, ...], (1, *detector_shape))
+#         # frame_datasets = [
+#         #     HDFDatasetDescription(
+#         #         data_key=f"{name}_image",
+#         #         dataset=f"entry/data/data_{1:06d}",
+#         #         shape=(exposures_per_event, *detector_shape),
+#         #         # Always write as uint32
+#         #         dtype_numpy=np.dtype(np.uint32).str,
+#         #         chunk_shape=chunk_shape,
+#         #     )
+#         # ]
 
-        # Cache descriptions for later use
-        self._datasets = master_datasets + frame_datasets
+#         # Cache descriptions for later use
+#         self._datasets = master_datasets + frame_datasets
 
-        return {
-            ds.data_key: DataKey(
-                source="ADEiger FileWriter",
-                shape=list(ds.shape),
-                dtype="array"
-                if exposures_per_event > 1 or len(ds.shape) > 1
-                else "number",
-                dtype_numpy=ds.dtype_numpy,
-                external="STREAM:",
-            )
-            for ds in self._datasets
-        }
+#         return {
+#             ds.data_key: DataKey(
+#                 source="ADEiger FileWriter",
+#                 shape=list(ds.shape),
+#                 dtype="array"
+#                 if exposures_per_event > 1 or len(ds.shape) > 1
+#                 else "number",
+#                 dtype_numpy=ds.dtype_numpy,
+#                 external="STREAM:",
+#             )
+#             for ds in self._datasets
+#         }
 
-    @property
-    async def _master_file_path(self) -> Path | None:
-        if self._file_info is None:
-            logger.warning(
-                "No master file path found for file info %s",
-                self._file_info,
-            )
-            return None
-        sequence_id = await self.fileio.sequence_id.get_value()
-        return Path(
-            self._file_info.directory_path
-            / f"{self._file_info.filename}_{sequence_id}_master.h5"
-        )
+#     @property
+#     async def _master_file_path(self) -> Path | None:
+#         if self._file_info is None:
+#             logger.warning(
+#                 "No master file path found for file info %s",
+#                 self._file_info,
+#             )
+#             return None
+#         sequence_id = await self.fileio.sequence_id.get_value()
+#         return Path(
+#             self._file_info.directory_path
+#             / f"{self._file_info.filename}_{sequence_id}_master.h5"
+#         )
 
-    async def collect_stream_docs(
-        self, name: str, indices_written: int
-    ) -> AsyncIterator[StreamAsset]:
-        """Generate stream documents for the written HDF5 files."""
-        if indices_written:
-            master_file_path = await self._master_file_path
-            if master_file_path is None:
-                msg = f"Master file path is not set for {name}: {self._file_info}"
-                raise ValueError(msg)
+#     async def collect_stream_docs(
+#         self, name: str, indices_written: int
+#     ) -> AsyncIterator[StreamAsset]:
+#         """Generate stream documents for the written HDF5 files."""
+#         if indices_written:
+#             master_file_path = await self._master_file_path
+#             if master_file_path is None:
+#                 msg = f"Master file path is not set for {name}: {self._file_info}"
+#                 raise ValueError(msg)
 
-            # Eiger generates a new master file for each trigger
-            # so we need to create a new composer with a new
-            # master file path
-            composer = EigerDocumentComposer(
-                master_file_path,
-                self._datasets,
-                last_emitted_index=indices_written - 1,
-            )
+#             # Eiger generates a new master file for each trigger
+#             # so we need to create a new composer with a new
+#             # master file path
+#             composer = EigerDocumentComposer(
+#                 master_file_path,
+#                 self._datasets,
+#                 last_emitted_index=indices_written - 1,
+#             )
 
-            # For later validation
-            self._master_file_path_cache.append(master_file_path)
+#             # For later validation
+#             self._master_file_path_cache.append(master_file_path)
 
-            for doc in composer.stream_resources():
-                yield "stream_resource", doc
+#             for doc in composer.stream_resources():
+#                 yield "stream_resource", doc
 
-            for doc in composer.stream_data(indices_written):
-                yield "stream_datum", doc
+#             for doc in composer.stream_data(indices_written):
+#                 yield "stream_datum", doc
 
-    async def observe_indices_written(
-        self, timeout: float
-    ) -> AsyncGenerator[int, None]:
-        async for num_captured in observe_value(self.fileio.array_counter, timeout):
-            yield num_captured // self._exposures_per_event
+#     async def observe_indices_written(
+#         self, timeout: float
+#     ) -> AsyncGenerator[int, None]:
+#         async for num_captured in observe_value(self.fileio.array_counter, timeout):
+#             yield num_captured // self._exposures_per_event
 
-    async def get_indices_written(self) -> int:
-        return await self.fileio.array_counter.get_value() // self._exposures_per_event
+#     async def get_indices_written(self) -> int:
+#         return await self.fileio.array_counter.get_value() // self._exposures_per_event
 
-    async def close(self) -> None:
-        """Clean up file writing after acquisition and validate files exist."""
+#     async def close(self) -> None:
+#         """Clean up file writing after acquisition and validate files exist."""
 
-        # Check that the master files were written
-        for master_file_path in self._master_file_path_cache:
-            if not master_file_path.exists():
-                logger.warning("Master file was not written: %s", master_file_path)
+#         # Check that the master files were written
+#         for master_file_path in self._master_file_path_cache:
+#             if not master_file_path.exists():
+#                 logger.warning("Master file was not written: %s", master_file_path)
 
-        self._file_info = None
+#         self._file_info = None
 
 
-class EigerController(ADBaseController[EigerDriverIO]):
-    """Controller for Eiger detector, handling trigger modes and acquisition setup."""
+# class EigerController(ADBaseController[EigerDriverIO]):
+#     """Controller for Eiger detector, handling trigger modes and acquisition setup."""
 
-    def __init__(
-        self, driver: EigerDriverIO, *args: Any, **kwargs: dict[str, Any]
-    ) -> None:
-        super().__init__(driver, *args, **kwargs)
+#     def __init__(
+#         self, driver: EigerDriverIO, *args: Any, **kwargs: dict[str, Any]
+#     ) -> None:
+#         super().__init__(driver, *args, **kwargs)
 
-    def get_deadtime(self, exposure: float | None) -> float:
-        """Get detector deadtime for the given exposure."""
-        default_deadtime = 0.000001
-        if exposure is not None:
-            logger.warning(
-                "Ignoring exposure to calculate deadtime: %s, defaulting to %s",
-                exposure,
-                default_deadtime,
-            )
-        return default_deadtime
+#     def get_deadtime(self, exposure: float | None) -> float:
+#         """Get detector deadtime for the given exposure."""
+#         default_deadtime = 0.000001
+#         if exposure is not None:
+#             logger.warning(
+#                 "Ignoring exposure to calculate deadtime: %s, defaulting to %s",
+#                 exposure,
+#                 default_deadtime,
+#             )
+#         return default_deadtime
 
-    async def prepare(self, trigger_info: TriggerInfo) -> None:
-        """Prepare the detector for acquisition."""
-        if (exposure := trigger_info.livetime) is not None:
-            await self.driver.acquire_time.set(exposure)
+#     async def prepare(self, trigger_info: TriggerInfo) -> None:
+#         """Prepare the detector for acquisition."""
+#         if (exposure := trigger_info.livetime) is not None:
+#             await self.driver.acquire_time.set(exposure)
 
-        # Configure trigger mode based on TriggerInfo
-        if trigger_info.trigger == DetectorTrigger.INTERNAL:
-            await self.driver.trigger_mode.set(EigerTriggerMode.INTERNAL_SERIES)
-        elif trigger_info.trigger == DetectorTrigger.EDGE_TRIGGER:
-            await self.driver.trigger_mode.set(EigerTriggerMode.EXTERNAL_SERIES)
-        else:
-            msg = f"Trigger mode {trigger_info.trigger} not supported"
-            raise NotImplementedError(msg)
+#         # Configure trigger mode based on TriggerInfo
+#         if trigger_info.trigger == DetectorTrigger.INTERNAL:
+#             await self.driver.trigger_mode.set(EigerTriggerMode.INTERNAL_SERIES)
+#         elif trigger_info.trigger == DetectorTrigger.EDGE_TRIGGER:
+#             await self.driver.trigger_mode.set(EigerTriggerMode.EXTERNAL_SERIES)
+#         else:
+#             msg = f"Trigger mode {trigger_info.trigger} not supported"
+#             raise NotImplementedError(msg)
 
-        if trigger_info.total_number_of_exposures == 0:
-            image_mode = ADImageMode.CONTINUOUS
-        else:
-            image_mode = ADImageMode.MULTIPLE
+#         if trigger_info.total_number_of_exposures == 0:
+#             image_mode = ADImageMode.CONTINUOUS
+#         else:
+#             image_mode = ADImageMode.MULTIPLE
 
-        if isinstance(trigger_info.number_of_events, list):
-            logger.warning(
-                "Got a list for number of events, expected to be set up externally: %s",
-                trigger_info.number_of_events,
-            )
-        else:
-            await self.driver.num_triggers.set(trigger_info.number_of_events)
+#         if isinstance(trigger_info.number_of_events, list):
+#             logger.warning(
+#                 "Got a list for number of events, expected to be set up externally: %s",
+#                 trigger_info.number_of_events,
+#             )
+#         else:
+#             await self.driver.num_triggers.set(trigger_info.number_of_events)
 
-        await asyncio.gather(
-            self.driver.num_images.set(trigger_info.exposures_per_event),
-            self.driver.image_mode.set(image_mode),
-        )
+#         await asyncio.gather(
+#             self.driver.num_images.set(trigger_info.exposures_per_event),
+#             self.driver.image_mode.set(image_mode),
+#         )
 
 
 class EigerDetector(AreaDetector[EigerController]):

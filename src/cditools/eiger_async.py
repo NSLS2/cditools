@@ -39,7 +39,7 @@ from ophyd_async.epics.adcore import (
     #ADBaseDatasetDescriber,
     ADBaseIO,
     ADImageMode,
-    #ADWriter,
+    ADWriter,
     AreaDetector,
     NDFileIO,
     NDPluginBaseIO,

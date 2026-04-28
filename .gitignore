@@ -164,3 +164,6 @@ Thumbs.db
 # IDEs
 .vscode/
 .cursor/
+
+# Other
+notes.*

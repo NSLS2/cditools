@@ -27,7 +27,7 @@ def setup(
 
     Args:
         det_name (str): name of directory for the detector, e.g. "merlines-1"
-        date_dir (str): data in format "YYYY/MM/`DD"
+        date_dir (str): data in format "YYYY/MM/DD"
         file_name (str): file name without the .h5 extension, e.g. "scan_0000"
         proposal_id (str): current PASS proposal ID
 

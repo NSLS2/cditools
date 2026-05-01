@@ -83,7 +83,7 @@ def label_cosmics(data: NDArray[np.floating[Any]]) -> tuple[list[int], float]:
     return counts, average
 
 
-def plot_counts(counts: NDArray[np.floating[Any]]):
+def plot_counts(counts: NDArray[np.floating[Any]]) -> None:
     """Plot the histogram of the cosmic counts and fit a poisson distribution
 
     Args:

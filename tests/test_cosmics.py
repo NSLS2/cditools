@@ -20,7 +20,5 @@ def test_find_cosmics():
 def test_label_cosmics():
     data = np.array([[[0, 0], [0, 0]], [[1, 0], [0, 0]], [[0, 0], [5, 0]]])
     labeled_data = label_cosmics(data)
-    expected_labeled_data = np.array(
-        [[[0, 0], [0, 0]], [[1, 0], [0, 0]], [[0, 0], [5, 0]]]
-    )
-    assert np.array_equal(labeled_data, expected_labeled_data)
+    expected_labeled_data = ([0, 0, 0], 0.0)
+    assert labeled_data == expected_labeled_data

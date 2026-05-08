@@ -38,8 +38,8 @@ AVAILABLE_ATTENUATIONS = [
 class Attenuator(EpicsDevice):
 
     filter_material = "Al"
-    filter_density = xraylib.ElementDensity(13) # g/cm³
     filter_material_z = 13
+    filter_density = xraylib.ElementDensity(filter_material_z) # g/cm³
 
     def __init__(self, prefix: str, num: int, thickness: int):
         """
@@ -70,7 +70,7 @@ class Attenuator(EpicsDevice):
         linear_atten_coefficient in cm⁻¹
         """
         photon_energy = 8.6 # KeV TODO - get the right number; this is taken from bmm
-        mass_atten_cross_section = xraylib.CS_Total(self.filter_material_z, photon_energy) #
+        mass_atten_cross_section = xraylib.CS_Total(self.filter_material_z, photon_energy)
         return mass_atten_cross_section * self.filter_density
 
     @property
@@ -78,7 +78,7 @@ class Attenuator(EpicsDevice):
         """
         Attenuation is the fraction of remaining beam
         """
-        return np.exp(-self.linear_atten_coefficient * self.thickness_cm )
+        return np.exp(-self.linear_atten_coefficient * self.thickness_cm)
 
 
 class AttenuatorBank(StandardReadable, EpicsDevice):
@@ -89,7 +89,6 @@ class AttenuatorBank(StandardReadable, EpicsDevice):
     thicknesses = [16, 24, 66, 124] # microns
     available_attenuations = AVAILABLE_ATTENUATIONS
 
-    # TODO - create filter devices with ophyd-async
     def __init__(self):
         with self.add_children_as_readables():
             self.attenuators = DeviceVector(
@@ -160,7 +159,7 @@ class AttenuatorBank(StandardReadable, EpicsDevice):
 
     def _powerset(self) -> list[list[int]] :
         """
-        This is a famously n*O(2^n) problem.
+        This is a famously O(n*2^n) problem.
         """
         powerset = []
         for i in range(1 << len(self.attenuators)):

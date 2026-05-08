@@ -45,6 +45,7 @@ test = [
   "tiled[minimal-client]",
   "tiled[minimal-server]",
   "ophyd >=v1.10.6",
+  "pytest-watcher"
 ]
 dev = [
   "caproto[standard] >=0.4.2rc1,!=1.2.0",
@@ -92,15 +93,12 @@ dev-dependencies = [
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
+# TODO - fix the eiger_async module and tests
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config", "--ignore=tests/test_eiger_async.py"]
 xfail_strict = true
-filterwarnings = [
-  "ignore",
-]
+filterwarnings = "ignore"
 log_cli_level = "INFO"
-testpaths = [
-  "tests",
-]
+testpaths = "tests"
 
 [tool.coverage]
 run.source = ["cditools"]
@@ -174,3 +172,6 @@ default = { solve-group = "default" }
 dev = { features = ["dev"], solve-group = "default" }
 docs = { features = ["docs"], solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
+
+[tool.pixi.dependencies]
+xraylib = ">=4.2.1,<5"

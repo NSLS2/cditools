@@ -1,17 +1,19 @@
-from ophyd_async.core import init_devices
+from __future__ import annotations
+
 import pytest_asyncio
-from ophyd_async.testing import *
+from ophyd_async.core import init_devices
 
 from cditools.attenuator import AttenuatorBank
 
+pytest_plugins = ("pytest_asyncio",)
 
-pytest_plugins = ('pytest_asyncio',)
 
 @pytest_asyncio.fixture
 async def mock_attenuator_bank():
     async with init_devices(mock=True):
         mock_attenuator_bank = AttenuatorBank()
     yield mock_attenuator_bank
+
 
 def test_find_closest_attenuation(mock_attenuator_bank: AttenuatorBank):
     nearest = mock_attenuator_bank.find_closest_attenuation(0.7)

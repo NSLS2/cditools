@@ -1,8 +1,10 @@
+from __future__ import annotations
+
+import math
 from dataclasses import dataclass
 
-import xraylib
 import numpy as np
-import math
+import xraylib
 from ophyd_async.core import DeviceVector, StandardReadable
 from ophyd_async.epics.core import EpicsDevice
 
@@ -11,6 +13,7 @@ from ophyd_async.epics.core import EpicsDevice
 class AttenuatorCombination:
     attenuation: float
     attenuators: list[int]
+
 
 # The available attenuations can be calculated with the utility
 # methods below, but they do not change often,
@@ -32,14 +35,14 @@ AVAILABLE_ATTENUATIONS = [
     AttenuatorCombination(attenuation=0.644, attenuators=[0, 1]),
     AttenuatorCombination(attenuation=0.768, attenuators=[1]),
     AttenuatorCombination(attenuation=0.839, attenuators=[0]),
-    AttenuatorCombination(attenuation=1.0, attenuators=[])
+    AttenuatorCombination(attenuation=1.0, attenuators=[]),
 ]
 
-class Attenuator(EpicsDevice):
 
+class Attenuator(EpicsDevice):
     filter_material = "Al"
     filter_material_z = 13
-    filter_density = xraylib.ElementDensity(filter_material_z) # g/cm³
+    filter_density = xraylib.ElementDensity(filter_material_z)  # g/cm³
 
     def __init__(self, prefix: str, num: int, thickness: int):
         """
@@ -47,8 +50,8 @@ class Attenuator(EpicsDevice):
         """
         self.prefix = prefix
         self.num = num
-        self.pv = f"{self.prefix}:D0{self.num+1}-Cmd"
-        self.thickness = thickness # microns
+        self.pv = f"{self.prefix}:D0{self.num + 1}-Cmd"
+        self.thickness = thickness  # microns
         super().__init__(prefix=self.prefix)
 
     def __repr__(self):
@@ -69,8 +72,10 @@ class Attenuator(EpicsDevice):
         xraylib.CS_Total in cm²/g
         linear_atten_coefficient in cm⁻¹
         """
-        photon_energy = 8.6 # KeV TODO - get the right number; this is taken from bmm
-        mass_atten_cross_section = xraylib.CS_Total(self.filter_material_z, photon_energy)
+        photon_energy = 8.6  # KeV TODO - get the right number; this is taken from bmm
+        mass_atten_cross_section = xraylib.CS_Total(
+            self.filter_material_z, photon_energy
+        )
         return mass_atten_cross_section * self.filter_density
 
     @property
@@ -85,8 +90,9 @@ class AttenuatorBank(StandardReadable, EpicsDevice):
     """
     The ioc for the iologik1 lives on xf09id1-inst-ioc1
     """
-    prefix = 'XF:09ID1-ES{IOLOGIK1:E1212}:'
-    thicknesses = [16, 24, 66, 124] # microns
+
+    prefix = "XF:09ID1-ES{IOLOGIK1:E1212}:"
+    thicknesses = (16, 24, 66, 124)  # microns
     available_attenuations = AVAILABLE_ATTENUATIONS
 
     def __init__(self):
@@ -94,16 +100,17 @@ class AttenuatorBank(StandardReadable, EpicsDevice):
             self.attenuators = DeviceVector(
                 {
                     i: Attenuator(self.prefix, i, self.thicknesses[i])
-                    for i in range(0,len(self.thicknesses))
+                    for i in range(len(self.thicknesses))
                 }
             )
         super().__init__(prefix=self.prefix)
 
-
     def set_attenuation(self, target_attenuation: float):
         pass
 
-    def find_closest_attenuation(self, target_attenuation: float) -> AttenuatorCombination:
+    def find_closest_attenuation(
+        self, target_attenuation: float
+    ) -> AttenuatorCombination:
         """
         This could be faster if we implemented binary search,
         but that seems like overkill for our use case. The search space
@@ -111,19 +118,19 @@ class AttenuatorBank(StandardReadable, EpicsDevice):
         """
         best_idx = len(self.available_attenuations) // 2
         atten = self.available_attenuations[best_idx].attenuation
-        diff = float('inf')
+        diff = float("inf")
         new_diff = abs(target_attenuation - atten)
 
         while new_diff < diff:
             diff = new_diff
             # TODO - the (in|de)crement can surely be combined into a clever one liner
             if target_attenuation > atten:
-                atten = self.available_attenuations[best_idx+1].attenuation
+                atten = self.available_attenuations[best_idx + 1].attenuation
                 new_diff = abs(target_attenuation - atten)
                 if new_diff < diff:
                     best_idx += 1
             else:
-                atten = self.available_attenuations[best_idx-1].attenuation
+                atten = self.available_attenuations[best_idx - 1].attenuation
                 new_diff = abs(target_attenuation - atten)
                 if new_diff < diff:
                     best_idx -= 1
@@ -140,24 +147,27 @@ class AttenuatorBank(StandardReadable, EpicsDevice):
     combinations of attenuators. The result is then used as the
     AttenuationBank()._available_attenuations attribute.
     """
+
     def _calculate_available_attentuations(self) -> list[AttenuatorCombination]:
         """
         It is more efficient to precompute all possible total
         attenuations, and simply look up the closest one.
         """
-        available_attenuations = list()
+        available_attenuations = []
         for combination in self._powerset():
             attens = [self.attenuators[a] for a in self.attenuators if a in combination]
             total_atten = self._calculate_total_attenuation(*attens)
-            available_attenuations.append(AttenuatorCombination(total_atten, combination))
+            available_attenuations.append(
+                AttenuatorCombination(total_atten, combination)
+            )
         # We want the available attenuations sorted so we can efficiently search through them
-        available_attenuations.sort(key=lambda a: a.attenuation) # type: ignore
+        available_attenuations.sort(key=lambda a: a.attenuation)  # type: ignore[attr-defined]
         return available_attenuations
 
-    def _calculate_total_attenuation(self, *attenuators: Attenuator) -> float :
+    def _calculate_total_attenuation(self, *attenuators: Attenuator) -> float:
         return round(float(math.prod([a.attenuation for a in attenuators])), 3)
 
-    def _powerset(self) -> list[list[int]] :
+    def _powerset(self) -> list[list[int]]:
         """
         This is a famously O(n*2^n) problem.
         """

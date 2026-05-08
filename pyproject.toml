@@ -173,6 +173,3 @@ default = { solve-group = "default" }
 dev = { features = ["dev"], solve-group = "default" }
 docs = { features = ["docs"], solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
-
-# [tool.pixi.dependencies]
-# xraylib = ">=4.2.1,<5"

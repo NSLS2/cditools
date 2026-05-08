@@ -5,8 +5,8 @@ from dataclasses import dataclass
 
 import numpy as np
 import xraylib
-from ophyd_async.core import DeviceVector, StandardReadable
-from ophyd_async.epics.core import EpicsDevice
+from ophyd_async.core import DeviceVector, SignalW, StandardReadable, SignalR, StrictEnum
+from ophyd_async.epics.core import EpicsDevice, epics_signal_r, epics_signal_w
 
 
 @dataclass
@@ -38,6 +38,10 @@ AVAILABLE_ATTENUATIONS = [
     AttenuatorCombination(attenuation=1.0, attenuators=[]),
 ]
 
+class AttenuatorEnum(StrictEnum):
+    LOW = "Low"
+    HIGH = "High"
+
 
 class Attenuator(EpicsDevice):
     filter_material = "Al"
@@ -50,12 +54,22 @@ class Attenuator(EpicsDevice):
         """
         self.prefix = prefix
         self.num = num
-        self.pv = f"{self.prefix}:D0{self.num + 1}-Cmd"
+        self.cmd = epics_signal_w(AttenuatorEnum, f"{self.prefix}:DO{self.num + 1}-Cmd")
+        self.status = epics_signal_r(AttenuatorEnum, f"{self.prefix}:DO{self.num + 1}-Sts")
         self.thickness = thickness  # microns
         super().__init__(prefix=self.prefix)
 
     def __repr__(self):
         return str(self.thickness)
+
+    async def open(self):
+        await self.cmd.set(AttenuatorEnum.HIGH)
+
+    async def close(self):
+        await self.cmd.set(AttenuatorEnum.LOW)
+
+    async def get_status(self):
+        await self.status.get_value()
 
     @property
     def thickness_cm(self):
@@ -88,10 +102,10 @@ class Attenuator(EpicsDevice):
 
 class AttenuatorBank(StandardReadable, EpicsDevice):
     """
-    The ioc for the iologik1 lives on xf09id1-inst-ioc1
+    The ioc for the iologik1 lives on xf09id1-inst-ioc1.nsls2.bnl.gov
     """
 
-    prefix = "XF:09ID1-ES{IOLOGIK1:E1212}:"
+    prefix = "XF:09ID1-ES{IOLOGIK1:E1212}"
     thicknesses = (16, 24, 66, 124)  # microns
     available_attenuations = AVAILABLE_ATTENUATIONS
 

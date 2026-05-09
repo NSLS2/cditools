@@ -168,6 +168,9 @@ platforms = ["linux-64", "osx-arm64"]
 [tool.pixi.pypi-dependencies]
 cditools = { path = ".", editable = true }
 
+[tool.pixi.feature.test.pypi-dependencies]
+ophyd-async = {version = ">=0.10.0a4", extras = ["ca"]}
+
 [tool.pixi.environments]
 default = { solve-group = "default" }
 dev = { features = ["dev"], solve-group = "default" }

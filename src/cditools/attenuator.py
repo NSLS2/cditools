@@ -5,7 +5,11 @@ from dataclasses import dataclass
 
 import numpy as np
 import xraylib
-from ophyd_async.core import DeviceVector, SignalW, StandardReadable, SignalR, StrictEnum
+from ophyd_async.core import (
+    DeviceVector,
+    StandardReadable,
+    StrictEnum,
+)
 from ophyd_async.epics.core import EpicsDevice, epics_signal_r, epics_signal_w
 
 
@@ -38,6 +42,7 @@ AVAILABLE_ATTENUATIONS = [
     AttenuatorCombination(attenuation=1.0, attenuators=[]),
 ]
 
+
 class AttenuatorEnum(StrictEnum):
     LOW = "Low"
     HIGH = "High"
@@ -55,7 +60,9 @@ class Attenuator(EpicsDevice):
         self.prefix = prefix
         self.num = num
         self.cmd = epics_signal_w(AttenuatorEnum, f"{self.prefix}:DO{self.num + 1}-Cmd")
-        self.status = epics_signal_r(AttenuatorEnum, f"{self.prefix}:DO{self.num + 1}-Sts")
+        self.status = epics_signal_r(
+            AttenuatorEnum, f"{self.prefix}:DO{self.num + 1}-Sts"
+        )
         self.thickness = thickness  # microns
         super().__init__(prefix=self.prefix)
 

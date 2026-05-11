@@ -141,23 +141,17 @@ class AttenuatorBank(StandardReadable, EpicsDevice):
         atten = self.available_attenuations[best_idx].attenuation
         diff = float("inf")
         new_diff = abs(target_attenuation - atten)
+        inc = 1 if target_attenuation > atten else -1
 
         while new_diff < diff:
             diff = new_diff
-            # TODO - the (in|de)crement can surely be combined into a clever one liner
-            if target_attenuation > atten:
-                atten = self.available_attenuations[best_idx + 1].attenuation
-                new_diff = abs(target_attenuation - atten)
-                if new_diff < diff:
-                    best_idx += 1
-            else:
-                atten = self.available_attenuations[best_idx - 1].attenuation
-                new_diff = abs(target_attenuation - atten)
-                if new_diff < diff:
-                    best_idx -= 1
-            # Break if we have reached the end of the list
-            if best_idx >= len(self.available_attenuations) or best_idx < 0:
+            # break if we are about to check oustide the list
+            if best_idx + inc >= len(self.available_attenuations) or best_idx + inc < 0:
                 break
+            atten = self.available_attenuations[best_idx + inc].attenuation
+            new_diff = abs(target_attenuation - atten)
+            if new_diff < diff:
+                best_idx += inc
         # TODO - should return just the found attentuation? or also the
         # requested attenuation and/or the difference?
         return self.available_attenuations[best_idx]

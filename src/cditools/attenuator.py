@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import math
 from dataclasses import dataclass
 
@@ -44,8 +45,8 @@ AVAILABLE_ATTENUATIONS = [
 
 
 class AttenuatorEnum(StrictEnum):
-    LOW = "Low"
-    HIGH = "High"
+    LOW = "Low" # off
+    HIGH = "High" # on
 
 
 class Attenuator(EpicsDevice):
@@ -55,7 +56,11 @@ class Attenuator(EpicsDevice):
 
     def __init__(self, prefix: str, num: int, thickness: int):
         """
-        pv - the PV for this filter
+        prefix - the common prefix for the attenuator bank
+        num - an integer denoting which attenuator within the bank this is
+        cmd - the write PV to open and close the attenuator
+        status - the read PV for the status (high or low)
+        thickness - the thickness of the attenuator in microns
         """
         self.prefix = prefix
         self.num = num
@@ -67,16 +72,17 @@ class Attenuator(EpicsDevice):
         super().__init__(prefix=self.prefix)
 
     def __repr__(self):
-        return str(self.thickness)
+        return f"{str(self.thickness)} microns, {self.filter_material}"
 
     async def open(self):
-        await self.cmd.set(AttenuatorEnum.HIGH)
-
-    async def close(self):
         await self.cmd.set(AttenuatorEnum.LOW)
 
+    async def close(self):
+        await self.cmd.set(AttenuatorEnum.HIGH)
+
     async def get_status(self):
-        await self.status.get_value()
+        status = await self.status.get_value()
+        return status
 
     @property
     def thickness_cm(self):
@@ -126,8 +132,18 @@ class AttenuatorBank(StandardReadable, EpicsDevice):
             )
         super().__init__(prefix=self.prefix)
 
-    def set_attenuation(self, target_attenuation: float):
-        pass
+    async def get_status(self):
+        status = await asyncio.gather(*(a.get_status() for _, a in self.attenuators.items()))
+        return status
+
+    async def set_attenuation(self, target_attenuation: float):
+        attenuation_combination = self.find_closest_attenuation(target_attenuation)
+        # use gather()?
+        for num, atten, in self.attenuators.items():
+            if num in attenuation_combination.attenuators:
+                await atten.close()
+            else:
+                await atten.open()
 
     def find_closest_attenuation(
         self, target_attenuation: float

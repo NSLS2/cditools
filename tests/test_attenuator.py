@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from ophyd_async.testing import assert_reading
 import pytest
 import pytest_asyncio
 from ophyd_async.core import init_devices, get_mock_put, set_mock_value
@@ -14,9 +13,7 @@ pytest_plugins = ("pytest_asyncio",)
 async def mock_attenuator_bank():
     async with init_devices(mock=True):
         mock_attenuator_bank = AttenuatorBank()
-
     yield mock_attenuator_bank
-
 
 @pytest.mark.asyncio
 async def test_set_attenuators(mock_attenuator_bank: AttenuatorBank):
@@ -48,14 +45,13 @@ async def test_get_bank_status(mock_attenuator_bank: AttenuatorBank):
     set_mock_value(mock_attenuator_bank.attenuators[2].status, AttenuatorEnum.HIGH)
     set_mock_value(mock_attenuator_bank.attenuators[3].status, AttenuatorEnum.LOW)
 
-    await assert_reading(mock_attenuator_bank, {
-        "mock_attenuator_bank": {
-            "attenuator0": { "status": "LOW" },
-            "attenuator1": { "status": "LOW" },
-            "attenuator2": { "status": "HIGH" },
-            "attenuator3": { "status": "LOW" },
-        }
-    })
+    assert await mock_attenuator_bank.get_status() == [
+            AttenuatorEnum.LOW,
+            AttenuatorEnum.LOW,
+            AttenuatorEnum.HIGH,
+            AttenuatorEnum.LOW
+        ]
+
 
 def test_find_closest_attenuation(mock_attenuator_bank: AttenuatorBank):
     nearest = mock_attenuator_bank.find_closest_attenuation(0.7)

@@ -65,9 +65,14 @@ class Attenuator(EpicsDevice):
         self.prefix = prefix
         self.num = num
         self.cmd = epics_signal_w(AttenuatorEnum, f"{self.prefix}:DO{self.num + 1}-Cmd")
+        self.mode = epics_signal_r(bool, f"{self.prefix}:DIO{self.num + 1}-Mode")
         self.status = epics_signal_r(
             AttenuatorEnum, f"{self.prefix}:DO{self.num + 1}-Sts"
         )
+        self.in_status = epics_signal_r(
+            AttenuatorEnum, f"{self.prefix}:DI{self.num + 1}-Sts"
+        )
+
         self.thickness = thickness  # microns
         super().__init__(prefix=self.prefix)
 
@@ -138,12 +143,13 @@ class AttenuatorBank(StandardReadable, EpicsDevice):
 
     async def set_attenuation(self, target_attenuation: float):
         attenuation_combination = self.find_closest_attenuation(target_attenuation)
-        # use gather()?
+        coros = []
         for num, atten, in self.attenuators.items():
             if num in attenuation_combination.attenuators:
-                await atten.close()
+                coros.append(atten.close())
             else:
-                await atten.open()
+                coros.append(atten.open())
+        await asyncio.gather(*coros)
 
     def find_closest_attenuation(
         self, target_attenuation: float
@@ -168,6 +174,8 @@ class AttenuatorBank(StandardReadable, EpicsDevice):
             new_diff = abs(target_attenuation - atten)
             if new_diff < diff:
                 best_idx += inc
+            else: # if diff did not change, then we have found the best option
+                break
         # TODO - should return just the found attentuation? or also the
         # requested attenuation and/or the difference?
         return self.available_attenuations[best_idx]

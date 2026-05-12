@@ -69,14 +69,11 @@ class Attenuator(EpicsDevice, Movable[AttenuatorStatusEnum]):
         self.num = num
         self.thickness = thickness  # microns
 
-        self.cmd = epics_signal_rw(
-            AttenuatorStatusEnum, f"{self.prefix}:DO{self.num + 1}-Cmd"
+        self.position = epics_signal_rw(
+            AttenuatorStatusEnum, f"{self.prefix}:DO{self.num + 1}-Sts", write_pv=f"{self.prefix}:DO{self.num + 1}-Cmd",
         )
-        self.mode = epics_signal_r(bool, f"{self.prefix}:DIO{self.num + 1}-Mode")
-        self.status = epics_signal_rw(
-            AttenuatorStatusEnum, f"{self.prefix}:DO{self.num + 1}-Sts"
-        )
-        self.in_status = epics_signal_rw(
+        self.mode = epics_signal_rw(bool, f"{self.prefix}:DIO{self.num + 1}-Mode")
+        self.in_status = epics_signal_r(
             AttenuatorStatusEnum, f"{self.prefix}:DI{self.num + 1}-Sts"
         )
 
@@ -87,17 +84,14 @@ class Attenuator(EpicsDevice, Movable[AttenuatorStatusEnum]):
 
     @AsyncStatus.wrap
     async def set(self, value: AttenuatorStatusEnum):
-        await self.cmd.set(value)
+        await self.position.set(value)
 
     # TODO - replace these with `yield from bps.mv()`
     async def open(self):
-        await self.cmd.set(AttenuatorStatusEnum.LOW)
+        await self.position.set(AttenuatorStatusEnum.LOW)
 
     async def close(self):
-        await self.cmd.set(AttenuatorStatusEnum.HIGH)
-
-    async def get_status(self):
-        return await self.status.get_value()
+        await self.position.set(AttenuatorStatusEnum.HIGH)
 
     @property
     def thickness_cm(self):
@@ -149,7 +143,7 @@ class AttenuatorBank(StandardReadable, EpicsDevice, Movable[float]):
 
     async def get_status(self):
         return await asyncio.gather(
-            *(a.get_status() for _, a in self.attenuators.items())
+            *(a.position.get_value() for _, a in self.attenuators.items())
         )
 
     @AsyncStatus.wrap

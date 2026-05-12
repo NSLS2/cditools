@@ -45,8 +45,8 @@ AVAILABLE_ATTENUATIONS = [
 
 
 class AttenuatorEnum(StrictEnum):
-    LOW = "Low" # off
-    HIGH = "High" # on
+    LOW = "Low"  # off
+    HIGH = "High"  # on
 
 
 class Attenuator(EpicsDevice):
@@ -77,7 +77,7 @@ class Attenuator(EpicsDevice):
         super().__init__(prefix=self.prefix)
 
     def __repr__(self):
-        return f"{str(self.thickness)} microns, {self.filter_material}"
+        return f"{self.thickness!s} microns, {self.filter_material}"
 
     async def open(self):
         await self.cmd.set(AttenuatorEnum.LOW)
@@ -86,8 +86,7 @@ class Attenuator(EpicsDevice):
         await self.cmd.set(AttenuatorEnum.HIGH)
 
     async def get_status(self):
-        status = await self.status.get_value()
-        return status
+        return await self.status.get_value()
 
     @property
     def thickness_cm(self):
@@ -138,13 +137,17 @@ class AttenuatorBank(StandardReadable, EpicsDevice):
         super().__init__(prefix=self.prefix)
 
     async def get_status(self):
-        status = await asyncio.gather(*(a.get_status() for _, a in self.attenuators.items()))
-        return status
+        return await asyncio.gather(
+            *(a.get_status() for _, a in self.attenuators.items())
+        )
 
     async def set_attenuation(self, target_attenuation: float):
         attenuation_combination = self.find_closest_attenuation(target_attenuation)
         coros = []
-        for num, atten, in self.attenuators.items():
+        for (
+            num,
+            atten,
+        ) in self.attenuators.items():
             if num in attenuation_combination.attenuators:
                 coros.append(atten.close())
             else:
@@ -174,7 +177,7 @@ class AttenuatorBank(StandardReadable, EpicsDevice):
             new_diff = abs(target_attenuation - atten)
             if new_diff < diff:
                 best_idx += inc
-            else: # if diff did not change, then we have found the best option
+            else:  # if diff did not change, then we have found the best option
                 break
         # TODO - should return just the found attentuation? or also the
         # requested attenuation and/or the difference?

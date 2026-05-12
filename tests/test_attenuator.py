@@ -46,12 +46,18 @@ async def test_set_attenuators(mock_attenuator_bank: AttenuatorBank):
 
 @pytest.mark.asyncio
 async def test_get_bank_status(mock_attenuator_bank: AttenuatorBank):
-    set_mock_value(mock_attenuator_bank.attenuators[0].position, AttenuatorStatusEnum.LOW)
-    set_mock_value(mock_attenuator_bank.attenuators[1].position, AttenuatorStatusEnum.LOW)
+    set_mock_value(
+        mock_attenuator_bank.attenuators[0].position, AttenuatorStatusEnum.LOW
+    )
+    set_mock_value(
+        mock_attenuator_bank.attenuators[1].position, AttenuatorStatusEnum.LOW
+    )
     set_mock_value(
         mock_attenuator_bank.attenuators[2].position, AttenuatorStatusEnum.HIGH
     )
-    set_mock_value(mock_attenuator_bank.attenuators[3].position, AttenuatorStatusEnum.LOW)
+    set_mock_value(
+        mock_attenuator_bank.attenuators[3].position, AttenuatorStatusEnum.LOW
+    )
 
     assert await mock_attenuator_bank.get_status() == [
         AttenuatorStatusEnum.LOW,

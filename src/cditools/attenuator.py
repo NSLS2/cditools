@@ -6,13 +6,12 @@ from dataclasses import dataclass
 
 import numpy as np
 import xraylib
-from bluesky.protocols import Movable
 from ophyd_async.core import (
+    AsyncMovable,
     AsyncStatus,
     DeviceVector,
     StandardReadable,
     StrictEnum,
-    # AsyncMovable,
 )
 from ophyd_async.epics.core import EpicsDevice, epics_signal_r, epics_signal_rw
 
@@ -48,11 +47,11 @@ AVAILABLE_ATTENUATIONS = [
 
 
 class AttenuatorStatusEnum(StrictEnum):
-    LOW = "Low"  # off
-    HIGH = "High"  # on
+    LOW = "Low"  # off / not obstructing
+    HIGH = "High"  # on / obstructing
 
 
-class Attenuator(EpicsDevice, Movable[AttenuatorStatusEnum]):
+class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
     filter_material = "Al"
     filter_material_z = 13
     filter_density = xraylib.ElementDensity(filter_material_z)  # g/cm³
@@ -70,7 +69,9 @@ class Attenuator(EpicsDevice, Movable[AttenuatorStatusEnum]):
         self.thickness = thickness  # microns
 
         self.position = epics_signal_rw(
-            AttenuatorStatusEnum, f"{self.prefix}:DO{self.num + 1}-Sts", write_pv=f"{self.prefix}:DO{self.num + 1}-Cmd",
+            AttenuatorStatusEnum,
+            f"{self.prefix}:DO{self.num + 1}-Sts",
+            write_pv=f"{self.prefix}:DO{self.num + 1}-Cmd",
         )
         self.mode = epics_signal_rw(bool, f"{self.prefix}:DIO{self.num + 1}-Mode")
         self.in_status = epics_signal_r(
@@ -86,11 +87,12 @@ class Attenuator(EpicsDevice, Movable[AttenuatorStatusEnum]):
     async def set(self, value: AttenuatorStatusEnum):
         await self.position.set(value)
 
-    # TODO - replace these with `yield from bps.mv()`
     async def open(self):
+        """Open means open to allowing the beam to pass unobstructed"""
         await self.position.set(AttenuatorStatusEnum.LOW)
 
     async def close(self):
+        """Closed means obstructing the beam"""
         await self.position.set(AttenuatorStatusEnum.HIGH)
 
     @property
@@ -122,7 +124,7 @@ class Attenuator(EpicsDevice, Movable[AttenuatorStatusEnum]):
         return np.exp(-self.linear_atten_coefficient * self.thickness_cm)
 
 
-class AttenuatorBank(StandardReadable, EpicsDevice, Movable[float]):
+class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
     """
     The ioc for the iologik1 lives on xf09id1-inst-ioc1.nsls2.bnl.gov
     """

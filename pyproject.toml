@@ -47,7 +47,6 @@ test = [
   "tiled[minimal-server]",
   "ophyd >=v1.10.6",
   "pytest-watcher",
-  "ophyd-async[ca] >=0.10.0a4"
 ]
 dev = [
   "caproto[standard] >=0.4.2rc1,!=1.2.0",

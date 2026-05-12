@@ -4,7 +4,11 @@ import pytest
 import pytest_asyncio
 from ophyd_async.core import get_mock_put, init_devices, set_mock_value
 
-from cditools.attenuator import AVAILABLE_ATTENUATIONS, AttenuatorBank, AttenuatorEnum
+from cditools.attenuator import (
+    AVAILABLE_ATTENUATIONS,
+    AttenuatorBank,
+    AttenuatorStatusEnum,
+)
 
 pytest_plugins = ("pytest_asyncio",)
 
@@ -25,33 +29,35 @@ async def test_set_attenuators(mock_attenuator_bank: AttenuatorBank):
 
     # AttenuatorCombination(attenuation=0.095, attenuators=[1, 2, 3]),
     combo0 = AVAILABLE_ATTENUATIONS[1]  # attenuators 1,2,3
-    await mock_attenuator_bank.set_attenuation(combo0.attenuation)
-    atten_mock0.assert_called_with(AttenuatorEnum.LOW)
-    atten_mock1.assert_called_with(AttenuatorEnum.HIGH)
-    atten_mock2.assert_called_with(AttenuatorEnum.HIGH)
-    atten_mock3.assert_called_with(AttenuatorEnum.HIGH)
+    await mock_attenuator_bank.set(combo0.attenuation)
+    atten_mock0.assert_called_with(AttenuatorStatusEnum.LOW)
+    atten_mock1.assert_called_with(AttenuatorStatusEnum.HIGH)
+    atten_mock2.assert_called_with(AttenuatorStatusEnum.HIGH)
+    atten_mock3.assert_called_with(AttenuatorStatusEnum.HIGH)
 
     # AttenuatorCombination(attenuation=0.768, attenuators=[1]),
     combo1 = AVAILABLE_ATTENUATIONS[-3]
-    await mock_attenuator_bank.set_attenuation(combo1.attenuation)
-    atten_mock0.assert_called_with(AttenuatorEnum.LOW)
-    atten_mock1.assert_called_with(AttenuatorEnum.HIGH)
-    atten_mock2.assert_called_with(AttenuatorEnum.LOW)
-    atten_mock3.assert_called_with(AttenuatorEnum.LOW)
+    await mock_attenuator_bank.set(combo1.attenuation)
+    atten_mock0.assert_called_with(AttenuatorStatusEnum.LOW)
+    atten_mock1.assert_called_with(AttenuatorStatusEnum.HIGH)
+    atten_mock2.assert_called_with(AttenuatorStatusEnum.LOW)
+    atten_mock3.assert_called_with(AttenuatorStatusEnum.LOW)
 
 
 @pytest.mark.asyncio
 async def test_get_bank_status(mock_attenuator_bank: AttenuatorBank):
-    set_mock_value(mock_attenuator_bank.attenuators[0].status, AttenuatorEnum.LOW)
-    set_mock_value(mock_attenuator_bank.attenuators[1].status, AttenuatorEnum.LOW)
-    set_mock_value(mock_attenuator_bank.attenuators[2].status, AttenuatorEnum.HIGH)
-    set_mock_value(mock_attenuator_bank.attenuators[3].status, AttenuatorEnum.LOW)
+    set_mock_value(mock_attenuator_bank.attenuators[0].status, AttenuatorStatusEnum.LOW)
+    set_mock_value(mock_attenuator_bank.attenuators[1].status, AttenuatorStatusEnum.LOW)
+    set_mock_value(
+        mock_attenuator_bank.attenuators[2].status, AttenuatorStatusEnum.HIGH
+    )
+    set_mock_value(mock_attenuator_bank.attenuators[3].status, AttenuatorStatusEnum.LOW)
 
     assert await mock_attenuator_bank.get_status() == [
-        AttenuatorEnum.LOW,
-        AttenuatorEnum.LOW,
-        AttenuatorEnum.HIGH,
-        AttenuatorEnum.LOW,
+        AttenuatorStatusEnum.LOW,
+        AttenuatorStatusEnum.LOW,
+        AttenuatorStatusEnum.HIGH,
+        AttenuatorStatusEnum.LOW,
     ]
 
 

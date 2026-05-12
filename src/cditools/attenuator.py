@@ -6,12 +6,15 @@ from dataclasses import dataclass
 
 import numpy as np
 import xraylib
+from bluesky.protocols import Movable
 from ophyd_async.core import (
+    AsyncStatus,
     DeviceVector,
     StandardReadable,
     StrictEnum,
+    # AsyncMovable,
 )
-from ophyd_async.epics.core import EpicsDevice, epics_signal_r, epics_signal_w
+from ophyd_async.epics.core import EpicsDevice, epics_signal_r, epics_signal_rw
 
 
 @dataclass
@@ -44,12 +47,12 @@ AVAILABLE_ATTENUATIONS = [
 ]
 
 
-class AttenuatorEnum(StrictEnum):
+class AttenuatorStatusEnum(StrictEnum):
     LOW = "Low"  # off
     HIGH = "High"  # on
 
 
-class Attenuator(EpicsDevice):
+class Attenuator(EpicsDevice, Movable[AttenuatorStatusEnum]):
     filter_material = "Al"
     filter_material_z = 13
     filter_density = xraylib.ElementDensity(filter_material_z)  # g/cm³
@@ -64,26 +67,34 @@ class Attenuator(EpicsDevice):
         """
         self.prefix = prefix
         self.num = num
-        self.cmd = epics_signal_w(AttenuatorEnum, f"{self.prefix}:DO{self.num + 1}-Cmd")
-        self.mode = epics_signal_r(bool, f"{self.prefix}:DIO{self.num + 1}-Mode")
-        self.status = epics_signal_r(
-            AttenuatorEnum, f"{self.prefix}:DO{self.num + 1}-Sts"
+        self.thickness = thickness  # microns
+
+        self.cmd = epics_signal_rw(
+            AttenuatorStatusEnum, f"{self.prefix}:DO{self.num + 1}-Cmd"
         )
-        self.in_status = epics_signal_r(
-            AttenuatorEnum, f"{self.prefix}:DI{self.num + 1}-Sts"
+        self.mode = epics_signal_r(bool, f"{self.prefix}:DIO{self.num + 1}-Mode")
+        self.status = epics_signal_rw(
+            AttenuatorStatusEnum, f"{self.prefix}:DO{self.num + 1}-Sts"
+        )
+        self.in_status = epics_signal_rw(
+            AttenuatorStatusEnum, f"{self.prefix}:DI{self.num + 1}-Sts"
         )
 
-        self.thickness = thickness  # microns
         super().__init__(prefix=self.prefix)
 
     def __repr__(self):
         return f"{self.thickness!s} microns, {self.filter_material}"
 
+    @AsyncStatus.wrap
+    async def set(self, value: AttenuatorStatusEnum):
+        await self.cmd.set(value)
+
+    # TODO - replace these with `yield from bps.mv()`
     async def open(self):
-        await self.cmd.set(AttenuatorEnum.LOW)
+        await self.cmd.set(AttenuatorStatusEnum.LOW)
 
     async def close(self):
-        await self.cmd.set(AttenuatorEnum.HIGH)
+        await self.cmd.set(AttenuatorStatusEnum.HIGH)
 
     async def get_status(self):
         return await self.status.get_value()
@@ -117,7 +128,7 @@ class Attenuator(EpicsDevice):
         return np.exp(-self.linear_atten_coefficient * self.thickness_cm)
 
 
-class AttenuatorBank(StandardReadable, EpicsDevice):
+class AttenuatorBank(StandardReadable, EpicsDevice, Movable[float]):
     """
     The ioc for the iologik1 lives on xf09id1-inst-ioc1.nsls2.bnl.gov
     """
@@ -141,8 +152,9 @@ class AttenuatorBank(StandardReadable, EpicsDevice):
             *(a.get_status() for _, a in self.attenuators.items())
         )
 
-    async def set_attenuation(self, target_attenuation: float):
-        attenuation_combination = self.find_closest_attenuation(target_attenuation)
+    @AsyncStatus.wrap
+    async def set(self, value: float):
+        attenuation_combination = self.find_closest_attenuation(value)
         coros = []
         for (
             num,

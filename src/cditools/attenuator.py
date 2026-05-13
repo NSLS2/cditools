@@ -22,6 +22,8 @@ class AttenuatorCombination:
     attenuators: list[int]
 
 
+THICKNESSES = (16, 24, 66, 124)  # microns
+
 # The available attenuations can be calculated with the utility
 # methods below, but they do not change often,
 # so we hardcode them here
@@ -130,7 +132,7 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
     """
 
     prefix = "XF:09ID1-ES{IOLOGIK1:E1212}"
-    thicknesses = (16, 24, 66, 124)  # microns
+    thicknesses = THICKNESSES
     available_attenuations = AVAILABLE_ATTENUATIONS
 
     def __init__(self):

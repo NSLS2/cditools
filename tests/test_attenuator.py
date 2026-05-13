@@ -21,42 +21,67 @@ async def mock_attenuator_bank():
 
 
 @pytest.mark.asyncio
+async def test_attenuators_indexed_at_1(mock_attenuator_bank: AttenuatorBank):
+    with pytest.raises(KeyError):
+        mock_attenuator_bank.attenuators[0]
+
+    atten1 = mock_attenuator_bank.attenuators[1]
+    assert atten1.num == 1
+    assert atten1.thickness == 16
+    assert atten1.position.source == "mock+ca://XF:09ID1-ES{IOLOGIK1:E1212}:DO1-Sts"
+    assert atten1.mode.source == "mock+ca://XF:09ID1-ES{IOLOGIK1:E1212}:DIO1-Mode"
+    assert atten1.in_status.source == "mock+ca://XF:09ID1-ES{IOLOGIK1:E1212}:DI1-Sts"
+
+    atten2 = mock_attenuator_bank.attenuators[2]
+    assert atten2.num == 2
+    assert atten2.thickness == 24
+
+    atten3 = mock_attenuator_bank.attenuators[3]
+    assert atten3.num == 3
+    assert atten3.thickness == 66
+
+    atten4 = mock_attenuator_bank.attenuators[4]
+    assert atten4.num == 4
+    assert atten4.thickness == 124
+
+
+@pytest.mark.asyncio
 async def test_set_attenuators(mock_attenuator_bank: AttenuatorBank):
-    atten_mock0 = get_mock_put(mock_attenuator_bank.attenuators[0].position)
     atten_mock1 = get_mock_put(mock_attenuator_bank.attenuators[1].position)
     atten_mock2 = get_mock_put(mock_attenuator_bank.attenuators[2].position)
     atten_mock3 = get_mock_put(mock_attenuator_bank.attenuators[3].position)
+    atten_mock4 = get_mock_put(mock_attenuator_bank.attenuators[4].position)
 
     # AttenuatorCombination(attenuation=0.095, attenuators=[1, 2, 3]),
     combo0 = AVAILABLE_ATTENUATIONS[1]  # attenuators 1,2,3
     await mock_attenuator_bank.set(combo0.attenuation)
-    atten_mock0.assert_called_with(AttenuatorStatusEnum.LOW)
-    atten_mock1.assert_called_with(AttenuatorStatusEnum.HIGH)
+    atten_mock1.assert_called_with(AttenuatorStatusEnum.LOW)
     atten_mock2.assert_called_with(AttenuatorStatusEnum.HIGH)
     atten_mock3.assert_called_with(AttenuatorStatusEnum.HIGH)
+    atten_mock4.assert_called_with(AttenuatorStatusEnum.HIGH)
 
     # AttenuatorCombination(attenuation=0.768, attenuators=[1]),
     combo1 = AVAILABLE_ATTENUATIONS[-3]
     await mock_attenuator_bank.set(combo1.attenuation)
-    atten_mock0.assert_called_with(AttenuatorStatusEnum.LOW)
-    atten_mock1.assert_called_with(AttenuatorStatusEnum.HIGH)
-    atten_mock2.assert_called_with(AttenuatorStatusEnum.LOW)
+    atten_mock1.assert_called_with(AttenuatorStatusEnum.LOW)
+    atten_mock2.assert_called_with(AttenuatorStatusEnum.HIGH)
     atten_mock3.assert_called_with(AttenuatorStatusEnum.LOW)
+    atten_mock4.assert_called_with(AttenuatorStatusEnum.LOW)
 
 
 @pytest.mark.asyncio
 async def test_get_bank_status(mock_attenuator_bank: AttenuatorBank):
     set_mock_value(
-        mock_attenuator_bank.attenuators[0].position, AttenuatorStatusEnum.LOW
-    )
-    set_mock_value(
         mock_attenuator_bank.attenuators[1].position, AttenuatorStatusEnum.LOW
     )
     set_mock_value(
-        mock_attenuator_bank.attenuators[2].position, AttenuatorStatusEnum.HIGH
+        mock_attenuator_bank.attenuators[2].position, AttenuatorStatusEnum.LOW
     )
     set_mock_value(
-        mock_attenuator_bank.attenuators[3].position, AttenuatorStatusEnum.LOW
+        mock_attenuator_bank.attenuators[3].position, AttenuatorStatusEnum.HIGH
+    )
+    set_mock_value(
+        mock_attenuator_bank.attenuators[4].position, AttenuatorStatusEnum.LOW
     )
 
     assert await mock_attenuator_bank.get_status() == [

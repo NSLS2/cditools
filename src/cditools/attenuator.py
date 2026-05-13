@@ -27,21 +27,21 @@ class AttenuatorCombination:
 # so we hardcode them here
 # TODO - there will eventually be eight filters
 AVAILABLE_ATTENUATIONS = [
-    AttenuatorCombination(attenuation=0.08, attenuators=[0, 1, 2, 3]),
-    AttenuatorCombination(attenuation=0.095, attenuators=[1, 2, 3]),
-    AttenuatorCombination(attenuation=0.104, attenuators=[0, 2, 3]),
-    AttenuatorCombination(attenuation=0.124, attenuators=[2, 3]),
-    AttenuatorCombination(attenuation=0.165, attenuators=[0, 1, 3]),
-    AttenuatorCombination(attenuation=0.196, attenuators=[1, 3]),
-    AttenuatorCombination(attenuation=0.214, attenuators=[0, 3]),
-    AttenuatorCombination(attenuation=0.256, attenuators=[3]),
-    AttenuatorCombination(attenuation=0.312, attenuators=[0, 1, 2]),
-    AttenuatorCombination(attenuation=0.372, attenuators=[1, 2]),
-    AttenuatorCombination(attenuation=0.406, attenuators=[0, 2]),
-    AttenuatorCombination(attenuation=0.484, attenuators=[2]),
-    AttenuatorCombination(attenuation=0.644, attenuators=[0, 1]),
-    AttenuatorCombination(attenuation=0.768, attenuators=[1]),
-    AttenuatorCombination(attenuation=0.839, attenuators=[0]),
+    AttenuatorCombination(attenuation=0.08, attenuators=[1, 2, 3, 4]),
+    AttenuatorCombination(attenuation=0.095, attenuators=[2, 3, 4]),
+    AttenuatorCombination(attenuation=0.104, attenuators=[1, 3, 4]),
+    AttenuatorCombination(attenuation=0.124, attenuators=[3, 4]),
+    AttenuatorCombination(attenuation=0.165, attenuators=[1, 2, 4]),
+    AttenuatorCombination(attenuation=0.196, attenuators=[2, 4]),
+    AttenuatorCombination(attenuation=0.214, attenuators=[1, 4]),
+    AttenuatorCombination(attenuation=0.256, attenuators=[4]),
+    AttenuatorCombination(attenuation=0.312, attenuators=[1, 2, 3]),
+    AttenuatorCombination(attenuation=0.372, attenuators=[2, 3]),
+    AttenuatorCombination(attenuation=0.406, attenuators=[1, 3]),
+    AttenuatorCombination(attenuation=0.484, attenuators=[3]),
+    AttenuatorCombination(attenuation=0.644, attenuators=[1, 2]),
+    AttenuatorCombination(attenuation=0.768, attenuators=[2]),
+    AttenuatorCombination(attenuation=0.839, attenuators=[1]),
     AttenuatorCombination(attenuation=1.0, attenuators=[]),
 ]
 
@@ -60,9 +60,9 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
         """
         prefix - the common prefix for the attenuator bank
         num - an integer denoting which attenuator within the bank this is
-        cmd - the write PV to open and close the attenuator
-        status - the read PV for the status (high or low)
         thickness - the thickness of the attenuator in microns
+
+        position - the read / write PV to open and close the attenuator
         """
         self.prefix = prefix
         self.num = num
@@ -70,12 +70,12 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
 
         self.position = epics_signal_rw(
             AttenuatorStatusEnum,
-            f"{self.prefix}:DO{self.num + 1}-Sts",
-            write_pv=f"{self.prefix}:DO{self.num + 1}-Cmd",
+            f"{self.prefix}:DO{self.num}-Sts",
+            write_pv=f"{self.prefix}:DO{self.num}-Cmd",
         )
-        self.mode = epics_signal_rw(bool, f"{self.prefix}:DIO{self.num + 1}-Mode")
+        self.mode = epics_signal_rw(bool, f"{self.prefix}:DIO{self.num}-Mode")
         self.in_status = epics_signal_r(
-            AttenuatorStatusEnum, f"{self.prefix}:DI{self.num + 1}-Sts"
+            AttenuatorStatusEnum, f"{self.prefix}:DI{self.num}-Sts"
         )
 
         super().__init__(prefix=self.prefix)
@@ -137,8 +137,8 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         with self.add_children_as_readables():
             self.attenuators = DeviceVector(
                 {
-                    i: Attenuator(self.prefix, i, self.thicknesses[i])
-                    for i in range(len(self.thicknesses))
+                    i: Attenuator(self.prefix, i, self.thicknesses[i - 1])
+                    for i in range(1, len(self.thicknesses) + 1)
                 }
             )
         super().__init__(prefix=self.prefix)
@@ -226,6 +226,6 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
             combination = []
             for j in range(len(self.attenuators)):
                 if i & (1 << j):
-                    combination.append(j)
+                    combination.append(j + 1)  # +1 because attenuators are 1-indexed
             powerset.append(combination)
         return powerset

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar, Protocol
 
+import bluesky.plan_stubs as bps
 import numpy as np
+import skbeam.core.constants.xrf as xrfC
+from bluesky import Msg
+from bluesky.callbacks import LiveTable
 from ophyd import Component as Cpt  # type: ignore[import-not-found]
 from ophyd import (
     Device,
@@ -21,8 +26,8 @@ from scipy.interpolate import make_interp_spline
 
 
 class EpicsMotorRO(EpicsMotor):
-    def __init__(self, *args: object, **kwargs: object):
-        super().__init__(*args, **kwargs)
+    def __init__(self, prefix: str, *, name: str, **kwargs: Any) -> None:
+        super().__init__(prefix=prefix, name=name, **kwargs)
 
     def move(self, *args: object, **kwargs: object):  # noqa: ARG002
         msg = f"{self.name} is read-only and cannot be moved."
@@ -85,12 +90,16 @@ class DMM(Device):
 
 class DCMBase(Device):
     pitch = Cpt(EpicsMotor, "Mono:HDCM-Ax:Pitch}Mtr")
-    fine: ClassVar[dict[str, Cpt]] = {
+    fine: ClassVar[dict[str, Cpt[EpicsMotor]]] = {
         "fpitch": Cpt(EpicsMotor, "Mono:HDCM-Ax:FP}Mtr"),
         "roll": Cpt(EpicsMotor, "Mono:HDCM-Ax:Roll}Mtr"),
     }
     h = Cpt(EpicsMotor, "Mono:HDCM-Ax:TX}Mtr")
     v = Cpt(EpicsMotor, "Mono:HDCM-Ax:TY}Mtr")
+
+
+class _RealPosWithBragg(Protocol):
+    bragg: float
 
 
 class Energy(PseudoPositioner):
@@ -99,16 +108,10 @@ class Energy(PseudoPositioner):
     # Synthetic Axis
     energy = Cpt(PseudoSingle, egu="KeV")
 
-    egu = Cpt(Signal, None, add_prefix=(), value="keV", kind="config")
+    energy_egu = Cpt(Signal, None, add_prefix=(), value="keV", kind="config")
     motor_egu = Cpt(Signal, None, add_prefix=(), value="eV", kind="config")
 
-    ### not sure what PV should be used for the insertion device, example from SRX
-    # u_gap = Cpt(InsertionDevice, "SR:C5-ID:G1{IVU21:1")
     _u_gap_offset = 0
-    ### same for c2_x
-    # c2_x = Cpt(EpicsMotor, "XF:05IDA-OP:1{Mono:HDCM-Ax:X2}Mtr", add_prefix=(), read_attrs=["user_readback"])
-    # epics_d_spacing = EpicsSignal("XF:05IDA-CT{IOC:Status01}DCMDspacing.VAL")
-    # epics_bragg_offset = EpicsSignal("XF:05IDA-CT{IOC:Status01}BraggOffset.VAL")
 
     # Energy "limits"
     _low = 5.0  # TODO: CHECK THIS VALUE, SRX uses 4.4
@@ -127,6 +130,97 @@ class Energy(PseudoPositioner):
 
     # Experimental
     detune = Cpt(Signal, None, add_prefix=(), value=0)
+
+    ele_list: ClassVar[list[str]] = [
+        "Si",
+        "P",
+        "S",
+        "Cl",
+        "Ar",
+        "K",
+        "Ca",
+        "Sc",
+        "Ti",
+        "V",
+        "Cr",
+        "Mn",
+        "Fe",
+        "Co",
+        "Ni",
+        "Cu",
+        "Zn",
+        "Ga",
+        "Ge",
+        "As",
+        "Se",
+        "Br",
+        "Kr",
+        "Rb",
+        "Sr",
+        "Y",
+        "Zr",
+        "Nb",
+        "Mo",
+        "Tc",
+        "Ru",
+        "Rh",
+        "Pd",
+        "Ag",
+        "Cd",
+        "In",
+        "Sn",
+        "Sb",
+        "Te",
+        "I",
+        "Xe",
+        "Cs",
+        "Ba",
+        "La",
+        "Ce",
+        "Pr",
+        "Nd",
+        "Pm",
+        "Sm",
+        "Eu",
+        "Gd",
+        "Tb",
+        "Dy",
+        "Ho",
+        "Er",
+        "Tm",
+        "Yb",
+        "Lu",
+        "Hf",
+        "Ta",
+        "W",
+        "Re",
+        "Os",
+        "Ir",
+        "Pt",
+        "Au",
+        "Hg",
+        "Tl",
+        "Pb",
+        "Bi",
+        "Po",
+        "At",
+        "Rn",
+        "Fr",
+        "Ra",
+        "Ac",
+        "Th",
+        "Pa",
+        "U",
+        "Np",
+        "Pu",
+        "Am",
+        "Cm",
+        "Cf",
+    ]
+
+    elements: ClassVar[dict[str, xrfC.XrfElement]] = {}
+    for i in ele_list:
+        elements[i] = xrfC.XrfElement(i)
 
     def __init__(
         self,
@@ -163,9 +257,6 @@ class Energy(PseudoPositioner):
 
         self.etoulookup = make_interp_spline(elistIn, uposlistIn)
         self.utoelookup = make_interp_spline(uposlistIn, elistIn)
-
-        # can't do this until we know the insertion device
-        # self.u_gap.gap.user_reacback.name = self.u_gap.name
 
     def energy_to_positions(
         self,
@@ -216,23 +307,23 @@ class Energy(PseudoPositioner):
 
         return bragg, gap, C2X, ugap
 
-    # def undulator_energy(self, harmonic: int = 3):
-    # ugap = self.u_gap.gap.user_readback.get() / 1000
-
-    # utoelookup = self.utoelookup
-    # cannot do thids until we know ugap for insertion device
-    # fundamental = float(utoelookup(ugap))
-    # energy = fundamental * harmonic
-
     @pseudo_position_argument
-    def forward(self, p_pos: object):
-        energy = p_pos.energy  # energy assumed in keV
-        bragg, gap, _, _ = self.energy_to_positions(energy)
-        harmonic = self.harmonic.get()
+    def forward(self, pseudo_pos: object):
+        energy = pseudo_pos.energy  # energy assumed in keV
+        bragg, _, _, _ = self.energy_to_positions(energy)
+        harmonic_raw = self.harmonic.get()
+        if not isinstance(harmonic_raw, (int, float)):
+            msg = "Harmonic value is not set"
+            raise RuntimeError(msg)
+        harmonic = int(harmonic_raw)
         if harmonic < 0 or ((harmonic % 2) == 0 and harmonic != 0):
             msg = f"The harmonic must be 0 or odd and positive, you set {harmonic}. Set `energy.harmonic` to a positive odd integer or 0."
             raise RuntimeError(msg)
-        detune = self.detune.get()
+        detune_raw = self.detune.get()
+        if not isinstance(detune_raw, (int, float)):
+            msg = "Detune value is not set"
+            raise RuntimeError(msg)
+        detune = float(detune_raw)
         if energy <= self._low:
             msg = f"The energy you entered is too low ({energy} keV). "
             msg += f"Minimum energy = {self._low:.1f} keV"
@@ -249,12 +340,10 @@ class Energy(PseudoPositioner):
         if harmonic < 3:
             harmonic = 3
             # Choose the right harmonic
-            braggcal, c2xcal, ugapcal = self.energy_to_positions(
-                energy, harmonic, detune
-            )
+            _, _, _, ugapcal = self.energy_to_positions(energy, harmonic, detune)
             # Try higher harmonics until the required gap is too small
             while True:
-                braggcal, c2xcal, ugapcal = self.energy_to_positions(
+                _, _, _, ugapcal = self.energy_to_positions(
                     energy, harmonic + 2, detune
                 )
                 if ugapcal < self.u_gap.low_limit:
@@ -264,7 +353,7 @@ class Energy(PseudoPositioner):
         self.selected_harmonic.put(harmonic)
 
         # Compute where we would move everything to in a perfect world
-        bragg, c2_x, u_gap = self.energy_to_positions(energy, harmonic, detune)
+        bragg, _, c2_x, u_gap = self.energy_to_positions(energy, harmonic, detune)
 
         # Sometimes move the crystal gap
         if not self.move_c2_x.get():
@@ -277,8 +366,8 @@ class Energy(PseudoPositioner):
         return self.RealPosition(bragg=np.rad2deg(bragg), c2_x=c2_x, cgap=u_gap)
 
     @real_position_argument
-    def inverse(self, r_pos: object):
-        bragg = np.deg2rad(r_pos.bragg)
+    def inverse(self, real_pos: _RealPosWithBragg):
+        bragg = np.deg2rad(real_pos.bragg)
         e = self.ANG_OVER_KEV / (2 * self.d_111 * np.sin(bragg))
         return self.PseudoPosition(energy=float(e))
 
@@ -294,31 +383,268 @@ class Energy(PseudoPositioner):
         self.detune.put(0.0)
         self.move(self.engergy.get()[0])
 
-    # def mono_peakup(element, acquisition_time=1.0, peakup=True):
-    #     """
-    #         First draft of the mono peakup scan
-    #         Need more info about the axis to be scanned, the move ID, and which detector will be used for feedback.
-    #     Args:
-    #         element (string): element name
-    #         acquisition_time (float, optional): _description_. Defaults to 1.0.
-    #         peakup (bool, optional): _description_. Defaults to True.
-    #     """
-    #     getemissionE(element)
-    #     energy_x = getbindingsE(element)
+    def banner(self, str_list: list[str] | str, border: str = "-"):
+        if not isinstance(str_list, list):
+            str_list = [str_list]
 
-    #     yield from mov(energy, energy_x)
-    #     setroi(1, element)
-    #     if peakup:
-    #         yield from bps.sleep(5)
-    #         yield from peakup()
-    #     yield from xanes_plan(
-    #         erange=[energy_x - 100, energy_x + 50],
-    #         estep=[1.0],
-    #         samplename=f"{element}Foil",
-    #         filename=f"{element}Foilstd",
-    #         acqtime=acquisition_time,
-    #         shutter=True,
-    #     )
+        num = 2
+        for str_val in str_list:
+            num = max(len(str_val), num)
+
+        print(border * (num + 2))  # noqa: T201
+        for str_val in str_list:
+            print(f" {str_val}")  # noqa: T201
+        print(border * (num + 2), end="\n\n")  # noqa: T201
+
+    def peakup(
+        self,
+        detectors: list[Any] | Any,
+        start: float | None = None,
+        min_step: float = 0.005,
+        max_step: float = 0.5,
+        *,
+        motor: Any = None,
+        target_fields: list[str] = ["bpm_current", "bpm_sum"],  # noqa: B006
+        MAX_ITER: int = 100,
+        verbose: bool = False,
+    ) -> Generator[Msg, Any, None]:
+        if motor is None:
+            msg = "peakup requires a motor to move. Please provide a motor to optimize."
+            raise ValueError(msg)
+
+        detector_list = (
+            list(detectors) if isinstance(detectors, list | tuple) else [detectors]
+        )
+        if not detector_list:
+            msg = "peakup requires at least one detector. Please provide a detector or list of detectors to optimize on."
+            raise ValueError(msg)
+
+        if verbose:
+            print("Additional debugging is enabled.")  # noqa: T201
+
+        if not 0 < min_step < max_step:
+            msg = f"Invalid step sizes: min_step={min_step}, max_step={max_step}. "
+            raise ValueError(msg)
+
+        # Grab starting point
+        if start is None:
+            start = motor.readback.get()
+            if verbose:
+                print(f"Starting position: {start:.4}")  # noqa: T201
+
+        # Check foils
+        if "bpm_current" in target_fields:
+            E = self.energy.energy.readback.get()  # keV
+            bpm = detector_list[
+                0
+            ]  # assume bpm is the first detector, need to figure out how to identify which detector is the bpm if there are multiple detectors
+            y = bpm.y.user_readback.get()  # Cu: y=0, Ti: y=25
+            if np.abs(y - 25) < 5:
+                foil = "Ti"
+            elif np.abs(y) < 5:
+                foil = "Cu"
+            else:
+                foil = ""
+                self.banner("Unknown foil! Continuing without check!")
+
+            if verbose:
+                print(f"Energy: {E:.4}")  # noqa: T201
+                print(f"Foil:\n  {y=:.4}\n  {foil=}")  # noqa: T201
+
+            threshold = 8.979  # DEFAULT? PASS AS ARG?
+            if (threshold < E and foil == "Ti") or (threshold > E and foil == "Cu"):
+                self.banner(
+                    "WARNING! BPM4 foil is not optimized for the incident energy."
+                )
+
+        # Visualization
+        livecb = []
+        if verbose is False:
+            livecb.append(LiveTable([motor.readback.name, *target_fields]))
+
+        # Optimize on a given detector
+        def optimize_on_det(target_field: str, x0: float) -> Generator[Msg, Any, float]:
+            past_pos = x0
+            next_pos = x0
+            step = max_step
+            past_I = None
+            cur_I = 0
+            cur_det = {}
+
+            for _ in range(MAX_ITER):
+                yield Msg("checkpoint")
+                if verbose:
+                    print(f"Moving {motor.name} to {next_pos:.4f}")  # noqa: T201
+                yield from bps.mv(motor, next_pos)
+                yield from bps.sleep(0.500)
+                yield Msg("create", None, name="primary")
+                for det in detector_list:
+                    yield Msg("trigger", det, group="B")
+                yield Msg("trigger", motor, group="B")
+                yield Msg("wait", None, "B")
+                for det in [*detector_list, motor]:
+                    cur_det = yield Msg("read", det)
+                    if target_field in cur_det:
+                        cur_I = cur_det[target_field]["value"]
+                        if verbose:
+                            print(f"New measurement on {target_field}: {cur_I:.4}")  # noqa: T201
+                yield Msg("save")
+                # special case first first loop
+            if past_I is None:
+                past_I = cur_I
+                next_pos += step
+                if verbose:
+                    print("past_I is None. Continuing...")  # noqa: T201
+
+            dI = cur_I - past_I
+            if verbose:
+                print(f"{dI=:.4f}")  # noqa: T201
+            if dI < 0:
+                step = -0.6 * step
+            else:
+                past_pos = next_pos
+                past_I = cur_I
+            next_pos = past_pos + step
+            if verbose:
+                print(f"{next_pos=:.4f}")  # noqa: T201
+
+            # Maximum found
+            if np.abs(step) < min_step:
+                if verbose:
+                    print(  # noqa: T201
+                        f"Maximum found for {target_field} at {x0:.4f}!\n  {step=:.4f}"
+                    )
+                return next_pos
+            else:
+                msg = "Optimization did not converge!"
+                raise Exception(msg)
+
+        # Start optimizing based on each detector field
+        x0: float = start if start is not None else 0.0
+        for target_field in target_fields:
+            if verbose:
+                print(f"Optimizing on detector {target_field}")  # noqa: T201
+            x0 = yield from optimize_on_det(target_field, x0)
+        return x0
+
+    def set_roi(
+        self, roinum: int, element: Any, line: str | None = None, det: Any | None = None
+    ) -> None:
+        cur_element = xrfC.XrfElement(element)
+        e = ""
+        if line is None:
+            for e in ["ka1", "la1", "ma1"]:
+                if cur_element.emission_line[e] < self.energy.energy.readback.get():
+                    break
+        elif line.lower() not in [
+            "ka1",
+            "ka2",
+            "kb1",
+            "la1",
+            "la2",
+            "lb1",
+            "lb2",
+            "lg1",
+            "ma1",
+        ]:
+            print(f"WARNING: line {line} not in allowed lines.")  # noqa: T201
+            print("Finding most appropriate line for the current energy.")  # noqa: T201
+            line = None
+        else:
+            e = line.lower()
+
+        # this works for the xspress3, need to figure out how to generalize this for other detectors
+        channels = []
+        e_ch = int(cur_element.emission_line[e] * 1000)
+        if det is not None:
+            # need to figure this out
+            # SRX profile 48 line 76
+            channels = det.channels.get()
+
+        for channel in channels:
+            mcaroi = channel.get_mcaroi(mcaroi_number=roinum)
+            # TODO: add eV-to-bin conversion to xspress3 class
+            mcaroi.configure_mcaroi(
+                min_x=(e_ch - 100) / 10, size_x=200 / 10, roi_name=f"{element}_{e}"
+            )
+            mcaroi.kind = "hinted"
+
+    def getemissionE(self, element: str, edge: str = "") -> float | None:
+        cur_element = xrfC.XrfElement(element)
+        if edge == "":
+            print("Edge\tEnergy [keV]")  # noqa: T201
+            for e in ["ka1", "ka2", "kb1", "la1", "la2", "lb1", "lb2", "lg1", "ma1"]:
+                if (
+                    cur_element.emission_line[e] < 25.0
+                    and cur_element.emission_line[e] > 1.0
+                ):
+                    # print("{0:s}\t{1:8.2f}".format(e, cur_element.emission_line[e]))
+                    print(f"{e}\t{cur_element.emission_line[e]:8.2f}")  # noqa: T201
+            return 0.0
+        return float(np.round(cur_element.emission_line[edge], 3))
+
+    def getbindingE(self, element: str, edge: str | None = None) -> float | None:
+        """
+        Return edge energy in eV if edge is specified,
+        otherwise return K and L edge energies and yields
+        element     <symbol>        element symbol for target
+        edge        ['k','l1','l2','l3']    return binding energy of this edge
+        """
+        if edge is None:
+            y = [0.0, "k"]
+            print("Edge\tEnergy [eV]\tYield")  # noqa: T201
+            for i in ["k", "l1", "l2", "l3"]:
+                print(  # noqa: T201
+                    f"{i}\t"
+                    f"{xrfC.XrayLibWrap(self.elements[element].Z, 'binding_e')[i] * 1000.0:8.2f}\t"
+                    f"{xrfC.XrayLibWrap(self.elements[element].Z, 'yield')[i]:5.3f}"
+                )
+                if (
+                    y[0] < xrfC.XrayLibWrap(self.elements[element].Z, "yield")[i]
+                    and xrfC.XrayLibWrap(self.elements[element].Z, "binding_e")[i]
+                    < 25.0
+                ):
+                    y[0] = xrfC.XrayLibWrap(self.elements[element].Z, "yield")[i]
+                    y[1] = i
+            return np.round(
+                xrfC.XrayLibWrap(self.elements[element].Z, "binding_e")[y[1]] * 1000.0,
+                3,
+            )
+        return np.round(
+            xrfC.XrayLibWrap(self.elements[element].Z, "binding_e")[edge] * 1000.0, 3
+        )
+
+    def mono_peakup(
+        self,
+        element: str,
+        peakup: bool = True,
+        detectors: list[Device] | None = None,
+        motors: list[Device] | None = None,
+        start: None = None,
+        targets: list[str] | None = None,
+    ) -> Generator[Msg, None, None]:
+        """
+            First draft of the mono peakup scan
+            Need more info about the axis to be scanned, the move ID, and which detector will be used for feedback.
+        Args:
+            element (string): element name
+            acquisition_time (float, optional): _description_. Defaults to 1.0.
+            peakup (bool, optional): _description_. Defaults to True.
+        """
+        self.getemissionE(element)
+        energy_x = self.getbindingE(element)
+
+        yield from bps.mov(self.energy, energy_x)
+        self.setroi(1, element)
+        if peakup:
+            yield from bps.sleep(5)
+            yield from self.peakup(
+                detectors=detectors,
+                motor=motors,
+                start=start,
+                target_fields=targets,
+                verbose=True,
+            )
 
 
 class VPM(Device):

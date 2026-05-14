@@ -33,7 +33,6 @@ dependencies = [
   "ophyd",
   "ophyd-async[ca] >=0.19",
   "h5py",
-  "xraylib >=4.2.1,<5",
   "xrayutilities>=1.7.12,<2"
 ]
 

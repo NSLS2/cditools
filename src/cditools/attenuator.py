@@ -5,7 +5,6 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
-import xraylib
 import xrayutilities as xu
 from ophyd_async.core import (
     AsyncMovable,
@@ -29,7 +28,6 @@ THICKNESSES = (16, 24, 66, 124)  # microns
 # methods below, but they do not change often,
 # so we hardcode them here
 # TODO - there will eventually be eight filters
-
 AVAILABLE_ATTENUATIONS = [
     AttenuatorCombination(transmission=0.084, attenuators=[1, 2, 3, 4]),
     AttenuatorCombination(transmission=0.1, attenuators=[2, 3, 4]),
@@ -56,9 +54,7 @@ class AttenuatorStatusEnum(StrictEnum):
 
 
 class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
-    filter_material = "Al"
-    filter_material_z = 13
-    filter_density = xraylib.ElementDensity(filter_material_z)  # g/cm³
+    filter_material = xu.materials.Al
 
     def __init__(self, prefix: str, num: int, thickness: int):
         """
@@ -122,7 +118,7 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
         elif units != "eV":
             msg = "Photon energy units must be eV or KeV"
             raise RuntimeError(msg)
-        return xu.materials.Al.absorption_length(photon_energy)  # type: ignore[reportArgumentType]
+        return self.filter_material.absorption_length(photon_energy)  # type: ignore[reportArgumentType]
 
 
 class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):

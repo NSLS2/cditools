@@ -1,25 +1,51 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 import pytest_asyncio
 from ophyd_async.core import get_mock_put, init_devices, set_mock_value
 from ophyd_async.testing import assert_value
 
 from cditools.attenuator import (
-    AVAILABLE_ATTENUATIONS,
     Attenuator,
     AttenuatorBank,
+    AttenuatorCombination,
     AttenuatorStatusEnum,
 )
+from cditools.motors import Energy
 
 pytest_plugins = ("pytest_asyncio",)
 photon_energy = 8.6  # KeV
+
+# These are the attenuations at photon_energy = 8.6 KeV
+TEST_ATTENUATIONS = [
+    AttenuatorCombination(transmission=0.084, attenuators=[1, 2, 3, 4]),
+    AttenuatorCombination(transmission=0.1, attenuators=[2, 3, 4]),
+    AttenuatorCombination(transmission=0.109, attenuators=[1, 3, 4]),
+    AttenuatorCombination(transmission=0.129, attenuators=[3, 4]),
+    AttenuatorCombination(transmission=0.171, attenuators=[1, 2, 4]),
+    AttenuatorCombination(transmission=0.203, attenuators=[2, 4]),
+    AttenuatorCombination(transmission=0.222, attenuators=[1, 4]),
+    AttenuatorCombination(transmission=0.263, attenuators=[4]),
+    AttenuatorCombination(transmission=0.32, attenuators=[1, 2, 3]),
+    AttenuatorCombination(transmission=0.38, attenuators=[2, 3]),
+    AttenuatorCombination(transmission=0.414, attenuators=[1, 3]),
+    AttenuatorCombination(transmission=0.492, attenuators=[3]),
+    AttenuatorCombination(transmission=0.65, attenuators=[1, 2]),
+    AttenuatorCombination(transmission=0.772, attenuators=[2]),
+    AttenuatorCombination(transmission=0.842, attenuators=[1]),
+    AttenuatorCombination(transmission=1.0, attenuators=[]),
+]
 
 
 @pytest_asyncio.fixture
 async def mock_attenuator_bank():
     async with init_devices(mock=True):
-        mock_attenuator_bank = AttenuatorBank()
+        mock_energy = MagicMock(spec=Energy)
+        mock_energy.energy.readback.get.return_value = photon_energy
+        mock_energy.egu = "KeV"
+        mock_attenuator_bank = AttenuatorBank(mock_energy)
     yield mock_attenuator_bank
 
 
@@ -50,7 +76,7 @@ class TestAttenuator:
 
     def test_transmission_ev(self, mock_attenuator: Attenuator):
         photon_energy = 8600  # eV
-        assert mock_attenuator.transmission(photon_energy, units="eV") == pytest.approx(
+        assert mock_attenuator.transmission(photon_energy, egu="eV") == pytest.approx(
             0.84, abs=0.01
         )
 
@@ -61,12 +87,25 @@ class TestAttenuator:
 
     def test_attenuation_ev(self, mock_attenuator: Attenuator):
         photon_energy = 8600  # eV
-        assert mock_attenuator.attenuation(photon_energy, units="eV") == pytest.approx(
+        assert mock_attenuator.attenuation(photon_energy, egu="eV") == pytest.approx(
             0.16, abs=0.01
         )
 
 
 class TestAttenuatorBank:
+    @pytest.mark.asyncio
+    async def test_attenuation_bank_creation(
+        self, mock_attenuator_bank: AttenuatorBank
+    ):
+        assert mock_attenuator_bank.energy.energy.readback.get() == 8.6
+        assert mock_attenuator_bank.photon_energy == 8.6
+
+        second_energy = MagicMock(spec=Energy)
+        second_energy.energy.readback.get.return_value = 6
+        second_bank = AttenuatorBank(second_energy)
+        assert second_bank.energy.energy.readback.get() == 6
+        assert second_bank.photon_energy == 6
+
     @pytest.mark.asyncio
     async def test_attenuators_indexed_at_1(self, mock_attenuator_bank: AttenuatorBank):
         with pytest.raises(KeyError):
@@ -100,16 +139,14 @@ class TestAttenuatorBank:
         atten_mock3 = get_mock_put(mock_attenuator_bank.attenuators[3].position)
         atten_mock4 = get_mock_put(mock_attenuator_bank.attenuators[4].position)
 
-        # AttenuatorCombination(attenuation=0.095, attenuators=[1, 2, 3]),
-        combo0 = AVAILABLE_ATTENUATIONS[1]  # attenuators 1,2,3
+        combo0 = TEST_ATTENUATIONS[1]  # attenuators 2, 3, 4
         await mock_attenuator_bank.set(combo0.transmission)
         atten_mock1.assert_called_with(AttenuatorStatusEnum.LOW)
         atten_mock2.assert_called_with(AttenuatorStatusEnum.HIGH)
         atten_mock3.assert_called_with(AttenuatorStatusEnum.HIGH)
         atten_mock4.assert_called_with(AttenuatorStatusEnum.HIGH)
 
-        # AttenuatorCombination(attenuation=0.768, attenuators=[1]),
-        combo1 = AVAILABLE_ATTENUATIONS[-3]
+        combo1 = TEST_ATTENUATIONS[-3]  # attenuator 2
         await mock_attenuator_bank.set(combo1.transmission)
         atten_mock1.assert_called_with(AttenuatorStatusEnum.LOW)
         atten_mock2.assert_called_with(AttenuatorStatusEnum.HIGH)
@@ -151,10 +188,10 @@ class TestAttenuatorBank:
         nearest4 = mock_attenuator_bank.find_closest_attenuation(0.98)
         assert nearest4.transmission == 1
 
-    def test_up_to_date_available_attenuations(
+    def test_find_closest_attenuation_with_alt_energies(
         self, mock_attenuator_bank: AttenuatorBank
     ):
-        assert (
-            mock_attenuator_bank._calculate_available_attentuations(photon_energy)  # type: ignore[reportPrivateUsage]
-            == AVAILABLE_ATTENUATIONS
-        )
+        nearest = mock_attenuator_bank.find_closest_attenuation(0.7)
+        assert nearest == AttenuatorCombination(transmission=0.65, attenuators=[1, 2])
+
+        # third_photon_energy = 5

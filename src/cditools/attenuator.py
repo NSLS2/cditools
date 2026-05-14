@@ -15,37 +15,20 @@ from ophyd_async.core import (
 )
 from ophyd_async.epics.core import EpicsDevice, epics_signal_r, epics_signal_rw
 
+from cditools.motors import Energy
+
 
 @dataclass
 class AttenuatorCombination:
     transmission: float
     attenuators: list[int]
 
+    @property
+    def attenuation(self):
+        return 1 - self.transmission
+
 
 THICKNESSES = (16, 24, 66, 124)  # microns
-
-# The available attenuations can be calculated with the utility
-# methods below, but they do not change often,
-# so we hardcode them here
-# TODO - there will eventually be eight filters
-AVAILABLE_ATTENUATIONS = [
-    AttenuatorCombination(transmission=0.084, attenuators=[1, 2, 3, 4]),
-    AttenuatorCombination(transmission=0.1, attenuators=[2, 3, 4]),
-    AttenuatorCombination(transmission=0.109, attenuators=[1, 3, 4]),
-    AttenuatorCombination(transmission=0.129, attenuators=[3, 4]),
-    AttenuatorCombination(transmission=0.171, attenuators=[1, 2, 4]),
-    AttenuatorCombination(transmission=0.203, attenuators=[2, 4]),
-    AttenuatorCombination(transmission=0.222, attenuators=[1, 4]),
-    AttenuatorCombination(transmission=0.263, attenuators=[4]),
-    AttenuatorCombination(transmission=0.32, attenuators=[1, 2, 3]),
-    AttenuatorCombination(transmission=0.38, attenuators=[2, 3]),
-    AttenuatorCombination(transmission=0.414, attenuators=[1, 3]),
-    AttenuatorCombination(transmission=0.492, attenuators=[3]),
-    AttenuatorCombination(transmission=0.65, attenuators=[1, 2]),
-    AttenuatorCombination(transmission=0.772, attenuators=[2]),
-    AttenuatorCombination(transmission=0.842, attenuators=[1]),
-    AttenuatorCombination(transmission=1.0, attenuators=[]),
-]
 
 
 class AttenuatorStatusEnum(StrictEnum):
@@ -95,17 +78,16 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
         """Closed means obstructing the beam"""
         await self.position.set(AttenuatorStatusEnum.HIGH)
 
-    def transmission(self, photon_energy: float, units: str = "KeV"):
+    def transmission(self, photon_energy: float, egu: str = "KeV"):
         """Transmission is the fraction of remaining beam"""
-        # return np.exp(-self.linear_atten_coefficient(photon_energy) * self.thickness_cm)
-        abs_len = self._absorption_length(photon_energy, units=units)
+        abs_len = self._absorption_length(photon_energy, egu=egu)
         return np.exp(-self.thickness / abs_len)
 
-    def attenuation(self, photon_energy: float, units: str = "KeV"):
+    def attenuation(self, photon_energy: float, egu: str = "KeV"):
         """Attenuation is the fraction of the beam removed"""
-        return 1 - self.transmission(photon_energy, units=units)
+        return 1 - self.transmission(photon_energy, egu=egu)
 
-    def _absorption_length(self, photon_energy: float, units: str = "KeV") -> float:
+    def _absorption_length(self, photon_energy: float, egu: str = "KeV") -> float:
         """
         Calculates L, the characteristic absorption length of this material,
         at this beam energy.
@@ -113,9 +95,9 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
         photon energy in KeV or eV
         absorption length in microns
         """
-        if units == "KeV":
+        if egu == "KeV":
             photon_energy = photon_energy * 1e3
-        elif units != "eV":
+        elif egu != "eV":
             msg = "Photon energy units must be eV or KeV"
             raise RuntimeError(msg)
         return self.filter_material.absorption_length(photon_energy)  # type: ignore[reportArgumentType]
@@ -128,9 +110,10 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
 
     prefix = "XF:09ID1-ES{IOLOGIK1:E1212}"
     thicknesses = THICKNESSES
-    available_attenuations = AVAILABLE_ATTENUATIONS
 
-    def __init__(self):
+    def __init__(self, energy: Energy):
+        self.energy = energy
+
         with self.add_children_as_readables():
             self.attenuators = DeviceVector(
                 {
@@ -139,6 +122,14 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
                 }
             )
         super().__init__(prefix=self.prefix)
+
+    @property
+    def photon_energy(self):
+        return self.energy.energy.readback.get()
+
+    @property
+    def egu(self):
+        return self.energy.egu
 
     async def get_status(self):
         return await asyncio.gather(
@@ -167,18 +158,19 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         but that seems like overkill for our use case. The search space
         is small, so we start in the middle, and work up or down.
         """
-        best_idx = len(self.available_attenuations) // 2
-        atten = self.available_attenuations[best_idx].transmission
+        available_attenuations = self._calculate_available_attentuations()
+        best_idx = len(available_attenuations) // 2
+        atten = available_attenuations[best_idx].transmission
         diff = float("inf")
         new_diff = abs(target_attenuation - atten)
         inc = 1 if target_attenuation > atten else -1
 
         while new_diff < diff:
             diff = new_diff
-            # break if we are about to check oustide the list
-            if best_idx + inc >= len(self.available_attenuations) or best_idx + inc < 0:
+            # break if we are about to check outside the list
+            if best_idx + inc >= len(available_attenuations) or best_idx + inc < 0:
                 break
-            atten = self.available_attenuations[best_idx + inc].transmission
+            atten = available_attenuations[best_idx + inc].transmission
             new_diff = abs(target_attenuation - atten)
             if new_diff < diff:
                 best_idx += inc
@@ -186,11 +178,9 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
                 break
         # TODO - should return just the found attentuation? or also the
         # requested attenuation and/or the difference?
-        return self.available_attenuations[best_idx]
+        return available_attenuations[best_idx]
 
-    def _calculate_available_attentuations(
-        self, photon_energy: float, units: str = "KeV"
-    ) -> list[AttenuatorCombination]:
+    def _calculate_available_attentuations(self) -> list[AttenuatorCombination]:
         """
         It is more efficient to precompute all possible total
         attenuations, and simply look up the closest one.
@@ -198,9 +188,7 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         available_attenuations = []
         for combination in self._powerset():
             attens = [self.attenuators[a] for a in self.attenuators if a in combination]
-            total_atten = self._calculate_total_attenuation(
-                *attens, photon_energy=photon_energy, units=units
-            )
+            total_atten = self._calculate_total_attenuation(*attens)
             available_attenuations.append(
                 AttenuatorCombination(total_atten, combination)
             )
@@ -208,17 +196,11 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         available_attenuations.sort(key=lambda a: a.transmission)  # type: ignore[attr-defined]
         return available_attenuations
 
-    def _calculate_total_attenuation(
-        self, *attenuators: Attenuator, photon_energy: float, units: str = "KeV"
-    ) -> float:
-        return round(
-            float(
-                math.prod(
-                    [a.transmission(photon_energy, units=units) for a in attenuators]
-                )
-            ),
-            3,
-        )
+    def _calculate_total_attenuation(self, *attenuators: Attenuator) -> float:
+        transmissions = [
+            a.transmission(self.photon_energy, self.egu) for a in attenuators
+        ]
+        return round(float(math.prod(transmissions)), 3)
 
     def _powerset(self) -> list[list[int]]:
         """
@@ -232,12 +214,3 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
                     combination.append(j + 1)  # +1 because attenuators are 1-indexed
             powerset.append(combination)
         return powerset
-
-
-"""
-from cditools.attenuator import AttenuatorBank
-
-bank = AttenuatorBank()
-atten = bank.attenuators[1]
-
-"""

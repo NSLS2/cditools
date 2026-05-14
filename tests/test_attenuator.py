@@ -12,6 +12,7 @@ from cditools.attenuator import (
 )
 
 pytest_plugins = ("pytest_asyncio",)
+photon_energy = 8.6  # KeV
 
 
 @pytest_asyncio.fixture
@@ -28,12 +29,26 @@ async def mock_attenuator(mock_attenuator_bank: AttenuatorBank):
     yield mock_attenuator
 
 
-def test_transmission(mock_attenuator: Attenuator):
-    assert mock_attenuator.transmission == pytest.approx(0.84, abs=0.01)
+def test_transmission_kev(mock_attenuator: Attenuator):
+    assert mock_attenuator.transmission(photon_energy) == pytest.approx(0.84, abs=0.01)
 
 
-def test_attenuation(mock_attenuator: Attenuator):
-    assert mock_attenuator.attenuation == pytest.approx(0.16, abs=0.01)
+def test_transmission_ev(mock_attenuator: Attenuator):
+    photon_energy = 8600  # eV
+    assert mock_attenuator.transmission(photon_energy, units="eV") == pytest.approx(
+        0.84, abs=0.01
+    )
+
+
+def test_attenuation_kev(mock_attenuator: Attenuator):
+    assert mock_attenuator.attenuation(photon_energy) == pytest.approx(0.16, abs=0.01)
+
+
+def test_attenuation_ev(mock_attenuator: Attenuator):
+    photon_energy = 8600  # eV
+    assert mock_attenuator.attenuation(photon_energy, units="eV") == pytest.approx(
+        0.16, abs=0.01
+    )
 
 
 @pytest.mark.asyncio
@@ -110,13 +125,13 @@ async def test_get_bank_status(mock_attenuator_bank: AttenuatorBank):
 
 def test_find_closest_attenuation(mock_attenuator_bank: AttenuatorBank):
     nearest = mock_attenuator_bank.find_closest_attenuation(0.7)
-    assert nearest.transmission == 0.644
+    assert nearest.transmission == 0.65
 
     nearest2 = mock_attenuator_bank.find_closest_attenuation(0.2)
-    assert nearest2.transmission == 0.196
+    assert nearest2.transmission == 0.203
 
     nearest3 = mock_attenuator_bank.find_closest_attenuation(0.02)
-    assert nearest3.transmission == 0.08
+    assert nearest3.transmission == 0.084
 
     nearest4 = mock_attenuator_bank.find_closest_attenuation(0.98)
     assert nearest4.transmission == 1
@@ -124,6 +139,6 @@ def test_find_closest_attenuation(mock_attenuator_bank: AttenuatorBank):
 
 def test_up_to_date_available_attenuations(mock_attenuator_bank: AttenuatorBank):
     assert (
-        mock_attenuator_bank._calculate_available_attentuations()  # type: ignore[reportPrivateUsage]
+        mock_attenuator_bank._calculate_available_attentuations(photon_energy)  # type: ignore[reportPrivateUsage]
         == AVAILABLE_ATTENUATIONS
     )

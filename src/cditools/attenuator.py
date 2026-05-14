@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import xraylib
+import xrayutilities as xu
 from ophyd_async.core import (
     AsyncMovable,
     AsyncStatus,
@@ -28,22 +29,23 @@ THICKNESSES = (16, 24, 66, 124)  # microns
 # methods below, but they do not change often,
 # so we hardcode them here
 # TODO - there will eventually be eight filters
+
 AVAILABLE_ATTENUATIONS = [
-    AttenuatorCombination(transmission=0.08, attenuators=[1, 2, 3, 4]),
-    AttenuatorCombination(transmission=0.095, attenuators=[2, 3, 4]),
-    AttenuatorCombination(transmission=0.104, attenuators=[1, 3, 4]),
-    AttenuatorCombination(transmission=0.124, attenuators=[3, 4]),
-    AttenuatorCombination(transmission=0.165, attenuators=[1, 2, 4]),
-    AttenuatorCombination(transmission=0.196, attenuators=[2, 4]),
-    AttenuatorCombination(transmission=0.214, attenuators=[1, 4]),
-    AttenuatorCombination(transmission=0.256, attenuators=[4]),
-    AttenuatorCombination(transmission=0.312, attenuators=[1, 2, 3]),
-    AttenuatorCombination(transmission=0.372, attenuators=[2, 3]),
-    AttenuatorCombination(transmission=0.406, attenuators=[1, 3]),
-    AttenuatorCombination(transmission=0.484, attenuators=[3]),
-    AttenuatorCombination(transmission=0.644, attenuators=[1, 2]),
-    AttenuatorCombination(transmission=0.768, attenuators=[2]),
-    AttenuatorCombination(transmission=0.839, attenuators=[1]),
+    AttenuatorCombination(transmission=0.084, attenuators=[1, 2, 3, 4]),
+    AttenuatorCombination(transmission=0.1, attenuators=[2, 3, 4]),
+    AttenuatorCombination(transmission=0.109, attenuators=[1, 3, 4]),
+    AttenuatorCombination(transmission=0.129, attenuators=[3, 4]),
+    AttenuatorCombination(transmission=0.171, attenuators=[1, 2, 4]),
+    AttenuatorCombination(transmission=0.203, attenuators=[2, 4]),
+    AttenuatorCombination(transmission=0.222, attenuators=[1, 4]),
+    AttenuatorCombination(transmission=0.263, attenuators=[4]),
+    AttenuatorCombination(transmission=0.32, attenuators=[1, 2, 3]),
+    AttenuatorCombination(transmission=0.38, attenuators=[2, 3]),
+    AttenuatorCombination(transmission=0.414, attenuators=[1, 3]),
+    AttenuatorCombination(transmission=0.492, attenuators=[3]),
+    AttenuatorCombination(transmission=0.65, attenuators=[1, 2]),
+    AttenuatorCombination(transmission=0.772, attenuators=[2]),
+    AttenuatorCombination(transmission=0.842, attenuators=[1]),
     AttenuatorCombination(transmission=1.0, attenuators=[]),
 ]
 
@@ -97,36 +99,30 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
         """Closed means obstructing the beam"""
         await self.position.set(AttenuatorStatusEnum.HIGH)
 
-    @property
-    def thickness_cm(self):
-        # Thickness is in microns, so convert to cm
-        return self.thickness * 1e-4
-
-    @property
-    def linear_atten_coefficient(self) -> float:
-        """
-        Calculates µ, the linear attenuation coefficient of this material,
-        at this thickness, and this beam energy.
-
-        photon energy in KeV
-        xraylib.CS_Total in cm²/g
-        linear_atten_coefficient in cm⁻¹
-        """
-        photon_energy = 8.6  # KeV TODO - get the right number; this is taken from bmm
-        mass_atten_cross_section = xraylib.CS_Total(
-            self.filter_material_z, photon_energy
-        )
-        return mass_atten_cross_section * self.filter_density
-
-    @property
-    def transmission(self):
+    def transmission(self, photon_energy: float, units: str = "KeV"):
         """Transmission is the fraction of remaining beam"""
-        return np.exp(-self.linear_atten_coefficient * self.thickness_cm)
+        # return np.exp(-self.linear_atten_coefficient(photon_energy) * self.thickness_cm)
+        abs_len = self._absorption_length(photon_energy, units=units)
+        return np.exp(-self.thickness / abs_len)
 
-    @property
-    def attenuation(self):
+    def attenuation(self, photon_energy: float, units: str = "KeV"):
         """Attenuation is the fraction of the beam removed"""
-        return 1 - self.transmission
+        return 1 - self.transmission(photon_energy, units=units)
+
+    def _absorption_length(self, photon_energy: float, units: str = "KeV") -> float:
+        """
+        Calculates L, the characteristic absorption length of this material,
+        at this beam energy.
+
+        photon energy in KeV or eV
+        absorption length in microns
+        """
+        if units == "KeV":
+            photon_energy = photon_energy * 1e3
+        elif units != "eV":
+            msg = "Photon energy units must be eV or KeV"
+            raise RuntimeError(msg)
+        return xu.materials.Al.absorption_length(photon_energy)  # type: ignore[reportArgumentType]
 
 
 class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
@@ -196,14 +192,9 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         # requested attenuation and/or the difference?
         return self.available_attenuations[best_idx]
 
-    """
-    These are utility methods that should not be called during production.
-    They are used to calculate the available attenuations from all
-    combinations of attenuators. The result is then used as the
-    AttenuationBank()._available_attenuations attribute.
-    """
-
-    def _calculate_available_attentuations(self) -> list[AttenuatorCombination]:
+    def _calculate_available_attentuations(
+        self, photon_energy: float, units: str = "KeV"
+    ) -> list[AttenuatorCombination]:
         """
         It is more efficient to precompute all possible total
         attenuations, and simply look up the closest one.
@@ -211,7 +202,9 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         available_attenuations = []
         for combination in self._powerset():
             attens = [self.attenuators[a] for a in self.attenuators if a in combination]
-            total_atten = self._calculate_total_attenuation(*attens)
+            total_atten = self._calculate_total_attenuation(
+                *attens, photon_energy=photon_energy, units=units
+            )
             available_attenuations.append(
                 AttenuatorCombination(total_atten, combination)
             )
@@ -219,8 +212,17 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         available_attenuations.sort(key=lambda a: a.transmission)  # type: ignore[attr-defined]
         return available_attenuations
 
-    def _calculate_total_attenuation(self, *attenuators: Attenuator) -> float:
-        return round(float(math.prod([a.transmission for a in attenuators])), 3)
+    def _calculate_total_attenuation(
+        self, *attenuators: Attenuator, photon_energy: float, units: str = "KeV"
+    ) -> float:
+        return round(
+            float(
+                math.prod(
+                    [a.transmission(photon_energy, units=units) for a in attenuators]
+                )
+            ),
+            3,
+        )
 
     def _powerset(self) -> list[list[int]]:
         """

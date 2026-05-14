@@ -6,6 +6,7 @@ from ophyd_async.core import get_mock_put, init_devices, set_mock_value
 
 from cditools.attenuator import (
     AVAILABLE_ATTENUATIONS,
+    Attenuator,
     AttenuatorBank,
     AttenuatorStatusEnum,
 )
@@ -18,6 +19,21 @@ async def mock_attenuator_bank():
     async with init_devices(mock=True):
         mock_attenuator_bank = AttenuatorBank()
     yield mock_attenuator_bank
+
+
+@pytest_asyncio.fixture
+async def mock_attenuator(mock_attenuator_bank: AttenuatorBank):
+    async with init_devices(mock=True):
+        mock_attenuator = Attenuator(mock_attenuator_bank.prefix, 1, 16)
+    yield mock_attenuator
+
+
+def test_transmission(mock_attenuator: Attenuator):
+    assert mock_attenuator.transmission == pytest.approx(0.84, abs=0.01)
+
+
+def test_attenuation(mock_attenuator: Attenuator):
+    assert mock_attenuator.attenuation == pytest.approx(0.16, abs=0.01)
 
 
 @pytest.mark.asyncio
@@ -54,7 +70,7 @@ async def test_set_attenuators(mock_attenuator_bank: AttenuatorBank):
 
     # AttenuatorCombination(attenuation=0.095, attenuators=[1, 2, 3]),
     combo0 = AVAILABLE_ATTENUATIONS[1]  # attenuators 1,2,3
-    await mock_attenuator_bank.set(combo0.attenuation)
+    await mock_attenuator_bank.set(combo0.transmission)
     atten_mock1.assert_called_with(AttenuatorStatusEnum.LOW)
     atten_mock2.assert_called_with(AttenuatorStatusEnum.HIGH)
     atten_mock3.assert_called_with(AttenuatorStatusEnum.HIGH)
@@ -62,7 +78,7 @@ async def test_set_attenuators(mock_attenuator_bank: AttenuatorBank):
 
     # AttenuatorCombination(attenuation=0.768, attenuators=[1]),
     combo1 = AVAILABLE_ATTENUATIONS[-3]
-    await mock_attenuator_bank.set(combo1.attenuation)
+    await mock_attenuator_bank.set(combo1.transmission)
     atten_mock1.assert_called_with(AttenuatorStatusEnum.LOW)
     atten_mock2.assert_called_with(AttenuatorStatusEnum.HIGH)
     atten_mock3.assert_called_with(AttenuatorStatusEnum.LOW)
@@ -94,16 +110,16 @@ async def test_get_bank_status(mock_attenuator_bank: AttenuatorBank):
 
 def test_find_closest_attenuation(mock_attenuator_bank: AttenuatorBank):
     nearest = mock_attenuator_bank.find_closest_attenuation(0.7)
-    assert nearest.attenuation == 0.644
+    assert nearest.transmission == 0.644
 
     nearest2 = mock_attenuator_bank.find_closest_attenuation(0.2)
-    assert nearest2.attenuation == 0.196
+    assert nearest2.transmission == 0.196
 
     nearest3 = mock_attenuator_bank.find_closest_attenuation(0.02)
-    assert nearest3.attenuation == 0.08
+    assert nearest3.transmission == 0.08
 
     nearest4 = mock_attenuator_bank.find_closest_attenuation(0.98)
-    assert nearest4.attenuation == 1
+    assert nearest4.transmission == 1
 
 
 def test_up_to_date_available_attenuations(mock_attenuator_bank: AttenuatorBank):

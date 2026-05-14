@@ -18,7 +18,7 @@ from ophyd_async.epics.core import EpicsDevice, epics_signal_r, epics_signal_rw
 
 @dataclass
 class AttenuatorCombination:
-    attenuation: float
+    transmission: float
     attenuators: list[int]
 
 
@@ -29,22 +29,22 @@ THICKNESSES = (16, 24, 66, 124)  # microns
 # so we hardcode them here
 # TODO - there will eventually be eight filters
 AVAILABLE_ATTENUATIONS = [
-    AttenuatorCombination(attenuation=0.08, attenuators=[1, 2, 3, 4]),
-    AttenuatorCombination(attenuation=0.095, attenuators=[2, 3, 4]),
-    AttenuatorCombination(attenuation=0.104, attenuators=[1, 3, 4]),
-    AttenuatorCombination(attenuation=0.124, attenuators=[3, 4]),
-    AttenuatorCombination(attenuation=0.165, attenuators=[1, 2, 4]),
-    AttenuatorCombination(attenuation=0.196, attenuators=[2, 4]),
-    AttenuatorCombination(attenuation=0.214, attenuators=[1, 4]),
-    AttenuatorCombination(attenuation=0.256, attenuators=[4]),
-    AttenuatorCombination(attenuation=0.312, attenuators=[1, 2, 3]),
-    AttenuatorCombination(attenuation=0.372, attenuators=[2, 3]),
-    AttenuatorCombination(attenuation=0.406, attenuators=[1, 3]),
-    AttenuatorCombination(attenuation=0.484, attenuators=[3]),
-    AttenuatorCombination(attenuation=0.644, attenuators=[1, 2]),
-    AttenuatorCombination(attenuation=0.768, attenuators=[2]),
-    AttenuatorCombination(attenuation=0.839, attenuators=[1]),
-    AttenuatorCombination(attenuation=1.0, attenuators=[]),
+    AttenuatorCombination(transmission=0.08, attenuators=[1, 2, 3, 4]),
+    AttenuatorCombination(transmission=0.095, attenuators=[2, 3, 4]),
+    AttenuatorCombination(transmission=0.104, attenuators=[1, 3, 4]),
+    AttenuatorCombination(transmission=0.124, attenuators=[3, 4]),
+    AttenuatorCombination(transmission=0.165, attenuators=[1, 2, 4]),
+    AttenuatorCombination(transmission=0.196, attenuators=[2, 4]),
+    AttenuatorCombination(transmission=0.214, attenuators=[1, 4]),
+    AttenuatorCombination(transmission=0.256, attenuators=[4]),
+    AttenuatorCombination(transmission=0.312, attenuators=[1, 2, 3]),
+    AttenuatorCombination(transmission=0.372, attenuators=[2, 3]),
+    AttenuatorCombination(transmission=0.406, attenuators=[1, 3]),
+    AttenuatorCombination(transmission=0.484, attenuators=[3]),
+    AttenuatorCombination(transmission=0.644, attenuators=[1, 2]),
+    AttenuatorCombination(transmission=0.768, attenuators=[2]),
+    AttenuatorCombination(transmission=0.839, attenuators=[1]),
+    AttenuatorCombination(transmission=1.0, attenuators=[]),
 ]
 
 
@@ -119,11 +119,14 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
         return mass_atten_cross_section * self.filter_density
 
     @property
-    def attenuation(self):
-        """
-        Attenuation is the fraction of remaining beam
-        """
+    def transmission(self):
+        """Transmission is the fraction of remaining beam"""
         return np.exp(-self.linear_atten_coefficient * self.thickness_cm)
+
+    @property
+    def attenuation(self):
+        """Attenuation is the fraction of the beam removed"""
+        return 1 - self.transmission
 
 
 class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
@@ -173,7 +176,7 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         is small, so we start in the middle, and work up or down.
         """
         best_idx = len(self.available_attenuations) // 2
-        atten = self.available_attenuations[best_idx].attenuation
+        atten = self.available_attenuations[best_idx].transmission
         diff = float("inf")
         new_diff = abs(target_attenuation - atten)
         inc = 1 if target_attenuation > atten else -1
@@ -183,7 +186,7 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
             # break if we are about to check oustide the list
             if best_idx + inc >= len(self.available_attenuations) or best_idx + inc < 0:
                 break
-            atten = self.available_attenuations[best_idx + inc].attenuation
+            atten = self.available_attenuations[best_idx + inc].transmission
             new_diff = abs(target_attenuation - atten)
             if new_diff < diff:
                 best_idx += inc
@@ -213,11 +216,11 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
                 AttenuatorCombination(total_atten, combination)
             )
         # We want the available attenuations sorted so we can efficiently search through them
-        available_attenuations.sort(key=lambda a: a.attenuation)  # type: ignore[attr-defined]
+        available_attenuations.sort(key=lambda a: a.transmission)  # type: ignore[attr-defined]
         return available_attenuations
 
     def _calculate_total_attenuation(self, *attenuators: Attenuator) -> float:
-        return round(float(math.prod([a.attenuation for a in attenuators])), 3)
+        return round(float(math.prod([a.transmission for a in attenuators])), 3)
 
     def _powerset(self) -> list[list[int]]:
         """
@@ -231,3 +234,12 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
                     combination.append(j + 1)  # +1 because attenuators are 1-indexed
             powerset.append(combination)
         return powerset
+
+
+"""
+from cditools.attenuator import AttenuatorBank
+
+bank = AttenuatorBank()
+atten = bank.attenuators[1]
+
+"""

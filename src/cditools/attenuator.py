@@ -37,9 +37,7 @@ class AttenuatorStatusEnum(StrictEnum):
 
 
 class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
-    filter_material = xu.materials.Al
-
-    def __init__(self, prefix: str, num: int, thickness: int):
+    def __init__(self, prefix: str, num: int, material: str, thickness: int):
         """
         prefix - the common prefix for the attenuator bank
         num - an integer denoting which attenuator within the bank this is
@@ -49,6 +47,7 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
         """
         self.prefix = prefix
         self.num = num
+        self.filter_material = getattr(xu.materials, material)
         self.thickness = thickness  # microns
 
         self.position = epics_signal_rw(
@@ -116,15 +115,19 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
 
     thicknesses = THICKNESSES
 
-    def __init__(self, prefix: str, energy: Energy):
+    def __init__(
+        self, prefix: str, atten_configs: list[tuple[str, int]], energy: Energy
+    ):
         self.prefix = prefix
         self.energy = energy
 
         with self.add_children_as_readables():
             self.attenuators = DeviceVector(
                 {
-                    i: Attenuator(self.prefix, i, self.thicknesses[i - 1])
-                    for i in range(1, len(self.thicknesses) + 1)
+                    i: Attenuator(
+                        self.prefix, i, atten_configs[i - 1][0], atten_configs[i - 1][1]
+                    )
+                    for i in range(1, len(atten_configs) + 1)
                 }
             )
         super().__init__(prefix=self.prefix)

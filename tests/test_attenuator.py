@@ -18,6 +18,7 @@ from cditools.motors import Energy
 pytest_plugins = ("pytest_asyncio",)
 photon_energy = 8.6  # KeV
 prefix = "test-prefix"
+attenuator_configs = [("Al", 16), ("Al", 24), ("Al", 66), ("Al", 124)]
 
 # These are the attenuations at photon_energy = 8.6 KeV
 TEST_ATTENUATIONS = [
@@ -46,14 +47,14 @@ async def mock_attenuator_bank():
         mock_energy = MagicMock(spec=Energy)
         mock_energy.energy.readback.get.return_value = photon_energy
         mock_energy.egu = "KeV"
-        mock_attenuator_bank = AttenuatorBank(prefix, mock_energy)
+        mock_attenuator_bank = AttenuatorBank(prefix, attenuator_configs, mock_energy)
     yield mock_attenuator_bank
 
 
 @pytest_asyncio.fixture
 async def mock_attenuator(mock_attenuator_bank: AttenuatorBank):
     async with init_devices(mock=True):
-        mock_attenuator = Attenuator(mock_attenuator_bank.prefix, 1, 16)
+        mock_attenuator = Attenuator(mock_attenuator_bank.prefix, 1, "Al", 16)
     yield mock_attenuator
 
 
@@ -103,7 +104,7 @@ class TestAttenuatorBank:
 
         second_energy = MagicMock(spec=Energy)
         second_energy.energy.readback.get.return_value = 6
-        second_bank = AttenuatorBank(prefix, second_energy)
+        second_bank = AttenuatorBank(prefix, attenuator_configs, second_energy)
         assert second_bank.energy.energy.readback.get() == 6
         assert second_bank.photon_energy == 6
 
@@ -173,7 +174,7 @@ class TestAttenuatorBank:
             second_energy = MagicMock(spec=Energy)
             second_energy.energy.readback.get.return_value = 12
             second_energy.egu = "KeV"
-            second_bank = AttenuatorBank(prefix, second_energy)
+            second_bank = AttenuatorBank(prefix, attenuator_configs, second_energy)
         set_mock_value(second_bank.attenuators[1].position, AttenuatorStatusEnum.LOW)
         set_mock_value(second_bank.attenuators[2].position, AttenuatorStatusEnum.HIGH)
         set_mock_value(second_bank.attenuators[3].position, AttenuatorStatusEnum.HIGH)
@@ -215,5 +216,3 @@ class TestAttenuatorBank:
     ):
         nearest = mock_attenuator_bank.find_closest_transmission(0.7)
         assert nearest == AttenuatorCombination(transmission=0.65, attenuators=[1, 2])
-
-        # third_photon_energy = 5

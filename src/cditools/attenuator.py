@@ -114,10 +114,10 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
     The ioc for the iologik1 lives on xf09id1-inst-ioc1.nsls2.bnl.gov
     """
 
-    prefix = "XF:09ID1-ES{IOLOGIK1:E1212}"
     thicknesses = THICKNESSES
 
-    def __init__(self, energy: Energy):
+    def __init__(self, prefix: str, energy: Energy):
+        self.prefix = prefix
         self.energy = energy
 
         with self.add_children_as_readables():

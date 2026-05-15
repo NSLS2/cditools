@@ -17,6 +17,7 @@ from cditools.motors import Energy
 
 pytest_plugins = ("pytest_asyncio",)
 photon_energy = 8.6  # KeV
+prefix = "test-prefix"
 
 # These are the attenuations at photon_energy = 8.6 KeV
 TEST_ATTENUATIONS = [
@@ -45,7 +46,7 @@ async def mock_attenuator_bank():
         mock_energy = MagicMock(spec=Energy)
         mock_energy.energy.readback.get.return_value = photon_energy
         mock_energy.egu = "KeV"
-        mock_attenuator_bank = AttenuatorBank(mock_energy)
+        mock_attenuator_bank = AttenuatorBank(prefix, mock_energy)
     yield mock_attenuator_bank
 
 
@@ -102,7 +103,7 @@ class TestAttenuatorBank:
 
         second_energy = MagicMock(spec=Energy)
         second_energy.energy.readback.get.return_value = 6
-        second_bank = AttenuatorBank(second_energy)
+        second_bank = AttenuatorBank(prefix, second_energy)
         assert second_bank.energy.energy.readback.get() == 6
         assert second_bank.photon_energy == 6
 
@@ -114,11 +115,9 @@ class TestAttenuatorBank:
         atten1 = mock_attenuator_bank.attenuators[1]
         assert atten1.num == 1
         assert atten1.thickness == 16
-        assert atten1.position.source == "mock+ca://XF:09ID1-ES{IOLOGIK1:E1212}:DO1-Sts"
-        assert atten1.mode.source == "mock+ca://XF:09ID1-ES{IOLOGIK1:E1212}:DIO1-Mode"
-        assert (
-            atten1.in_status.source == "mock+ca://XF:09ID1-ES{IOLOGIK1:E1212}:DI1-Sts"
-        )
+        assert atten1.position.source == "mock+ca://test-prefix:DO1-Sts"
+        assert atten1.mode.source == "mock+ca://test-prefix:DIO1-Mode"
+        assert atten1.in_status.source == "mock+ca://test-prefix:DI1-Sts"
         assert atten1.name == "attenuator_1"
 
         atten2 = mock_attenuator_bank.attenuators[2]
@@ -174,7 +173,7 @@ class TestAttenuatorBank:
             second_energy = MagicMock(spec=Energy)
             second_energy.energy.readback.get.return_value = 12
             second_energy.egu = "KeV"
-            second_bank = AttenuatorBank(second_energy)
+            second_bank = AttenuatorBank(prefix, second_energy)
         set_mock_value(second_bank.attenuators[1].position, AttenuatorStatusEnum.LOW)
         set_mock_value(second_bank.attenuators[2].position, AttenuatorStatusEnum.HIGH)
         set_mock_value(second_bank.attenuators[3].position, AttenuatorStatusEnum.HIGH)

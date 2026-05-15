@@ -119,6 +119,7 @@ class TestAttenuatorBank:
         assert (
             atten1.in_status.source == "mock+ca://XF:09ID1-ES{IOLOGIK1:E1212}:DI1-Sts"
         )
+        assert atten1.name == "attenuator_1"
 
         atten2 = mock_attenuator_bank.attenuators[2]
         assert atten2.num == 2
@@ -133,7 +134,7 @@ class TestAttenuatorBank:
         assert atten4.thickness == 124
 
     @pytest.mark.asyncio
-    async def test_set_attenuators(self, mock_attenuator_bank: AttenuatorBank):
+    async def test_set_attenuation(self, mock_attenuator_bank: AttenuatorBank):
         atten_mock1 = get_mock_put(mock_attenuator_bank.attenuators[1].position)
         atten_mock2 = get_mock_put(mock_attenuator_bank.attenuators[2].position)
         atten_mock3 = get_mock_put(mock_attenuator_bank.attenuators[3].position)
@@ -154,26 +155,48 @@ class TestAttenuatorBank:
         atten_mock4.assert_called_with(AttenuatorStatusEnum.LOW)
 
     @pytest.mark.asyncio
-    async def test_get_bank_status(self, mock_attenuator_bank: AttenuatorBank):
-        set_mock_value(
-            mock_attenuator_bank.attenuators[1].position, AttenuatorStatusEnum.LOW
-        )
-        set_mock_value(
-            mock_attenuator_bank.attenuators[2].position, AttenuatorStatusEnum.LOW
-        )
-        set_mock_value(
-            mock_attenuator_bank.attenuators[3].position, AttenuatorStatusEnum.HIGH
-        )
-        set_mock_value(
-            mock_attenuator_bank.attenuators[4].position, AttenuatorStatusEnum.LOW
-        )
+    async def test_get_status(self, mock_attenuator_bank: AttenuatorBank):
+        mock_attenuator_bank.set(1)
+        status = await mock_attenuator_bank.get_status()
+        assert status == {
+            "active_attenuators": [],
+            "photon_energy": 8.6,
+            "egu": "KeV",
+            "total_transmission": 1,
+            "attenuator_1": {"active": False, "transmission": 0},
+            "attenuator_2": {"active": False, "transmission": 0},
+            "attenuator_3": {"active": False, "transmission": 0},
+            "attenuator_4": {"active": False, "transmission": 0},
+        }
 
-        assert await mock_attenuator_bank.get_status() == [
-            AttenuatorStatusEnum.LOW,
-            AttenuatorStatusEnum.LOW,
-            AttenuatorStatusEnum.HIGH,
-            AttenuatorStatusEnum.LOW,
-        ]
+        # Test with different energy and attenuations
+        async with init_devices(mock=True):
+            second_energy = MagicMock(spec=Energy)
+            second_energy.energy.readback.get.return_value = 12
+            second_energy.egu = "KeV"
+            second_bank = AttenuatorBank(second_energy)
+        set_mock_value(second_bank.attenuators[1].position, AttenuatorStatusEnum.LOW)
+        set_mock_value(second_bank.attenuators[2].position, AttenuatorStatusEnum.HIGH)
+        set_mock_value(second_bank.attenuators[3].position, AttenuatorStatusEnum.HIGH)
+        set_mock_value(second_bank.attenuators[4].position, AttenuatorStatusEnum.LOW)
+
+        status = await second_bank.get_status()
+        assert status == {
+            "active_attenuators": [2, 3],
+            "photon_energy": 12,
+            "egu": "KeV",
+            "total_transmission": pytest.approx(0.699),
+            "attenuator_1": {"active": False, "transmission": 0},
+            "attenuator_2": {
+                "active": True,
+                "transmission": pytest.approx(0.909, rel=0.001),
+            },
+            "attenuator_3": {
+                "active": True,
+                "transmission": pytest.approx(0.769, rel=0.001),
+            },
+            "attenuator_4": {"active": False, "transmission": 0},
+        }
 
     def test_find_closest_attenuation(self, mock_attenuator_bank: AttenuatorBank):
         nearest = mock_attenuator_bank.find_closest_attenuation(0.7)

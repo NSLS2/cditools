@@ -66,6 +66,10 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
     def __repr__(self):
         return f"{self.thickness!s} microns, {self.filter_material}"
 
+    @property
+    def name(self):
+        return f"attenuator_{self.num}"
+
     @AsyncStatus.wrap
     async def set(self, value: AttenuatorStatusEnum):
         await self.position.set(value)
@@ -79,7 +83,7 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
         await self.position.set(AttenuatorStatusEnum.HIGH)
 
     def transmission(self, photon_energy: float, egu: str = "KeV"):
-        """Transmission is the fraction of remaining beam"""
+        """Transmission is the fraction of beam remaining"""
         abs_len = self._absorption_length(photon_energy, egu=egu)
         return np.exp(-self.thickness / abs_len)
 
@@ -92,8 +96,10 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
         Calculates L, the characteristic absorption length of this material,
         at this beam energy.
 
-        photon energy in KeV or eV
-        absorption length in microns
+        photon energy: the beam energy
+        egu: the engineering units of the beam energy (KeV or eV)
+        absorption length: the characteristic absorption length of the
+            filter material (microns)
         """
         if egu == "KeV":
             photon_energy = photon_energy * 1e3
@@ -131,10 +137,31 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
     def egu(self):
         return self.energy.egu
 
-    async def get_status(self):
-        return await asyncio.gather(
+    async def get_status(self):  # type: ignore[reportUnknownParameterType]
+        """
+        Status polls the bluesky energy object for the current beam energy, and
+        returns that energy, each filter position, each transmission, and
+        the total transmission.
+        """
+        status = {}
+        active_attens = []
+        en = self.photon_energy
+        egu = self.egu
+        positions = await asyncio.gather(
             *(a.position.get_value() for _, a in self.attenuators.items())
         )
+        for i, pos in zip(self.attenuators, positions):
+            atten = self.attenuators[i]
+            is_active = pos == AttenuatorStatusEnum.HIGH
+            if is_active:
+                active_attens.append(atten)
+            transmission = atten.transmission(en, egu) if is_active else 0
+            status[atten.name] = {"active": is_active, "transmission": transmission}
+        status["active_attenuators"] = [a.num for a in active_attens]
+        status["photon_energy"] = en
+        status["egu"] = egu
+        status["total_transmission"] = self._calculate_total_attenuation(*active_attens)
+        return status
 
     @AsyncStatus.wrap
     async def set(self, value: float):
@@ -150,6 +177,7 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
                 coros.append(atten.open())
         await asyncio.gather(*coros)
 
+    # TODO - fix the language here (transmission / attenuation)
     def find_closest_attenuation(
         self, target_attenuation: float
     ) -> AttenuatorCombination:

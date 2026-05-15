@@ -199,22 +199,22 @@ class TestAttenuatorBank:
         }
 
     def test_find_closest_attenuation(self, mock_attenuator_bank: AttenuatorBank):
-        nearest = mock_attenuator_bank.find_closest_attenuation(0.7)
+        nearest = mock_attenuator_bank.find_closest_transmission(0.7)
         assert nearest.transmission == 0.65
 
-        nearest2 = mock_attenuator_bank.find_closest_attenuation(0.2)
+        nearest2 = mock_attenuator_bank.find_closest_transmission(0.2)
         assert nearest2.transmission == 0.203
 
-        nearest3 = mock_attenuator_bank.find_closest_attenuation(0.02)
+        nearest3 = mock_attenuator_bank.find_closest_transmission(0.02)
         assert nearest3.transmission == 0.084
 
-        nearest4 = mock_attenuator_bank.find_closest_attenuation(0.98)
+        nearest4 = mock_attenuator_bank.find_closest_transmission(0.98)
         assert nearest4.transmission == 1
 
     def test_find_closest_attenuation_with_alt_energies(
         self, mock_attenuator_bank: AttenuatorBank
     ):
-        nearest = mock_attenuator_bank.find_closest_attenuation(0.7)
+        nearest = mock_attenuator_bank.find_closest_transmission(0.7)
         assert nearest == AttenuatorCombination(transmission=0.65, attenuators=[1, 2])
 
         # third_photon_energy = 5

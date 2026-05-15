@@ -160,12 +160,15 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         status["active_attenuators"] = [a.num for a in active_attens]
         status["photon_energy"] = en
         status["egu"] = egu
-        status["total_transmission"] = self._calculate_total_attenuation(*active_attens)
+        status["total_transmission"] = self._calculate_total_transmission(
+            *active_attens
+        )
         return status
 
     @AsyncStatus.wrap
     async def set(self, value: float):
-        attenuation_combination = self.find_closest_attenuation(value)
+        """Set the transmission for the attenuator bank"""
+        attenuation_combination = self.find_closest_transmission(value)
         coros = []
         for (
             num,
@@ -177,21 +180,20 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
                 coros.append(atten.open())
         await asyncio.gather(*coros)
 
-    # TODO - fix the language here (transmission / attenuation)
-    def find_closest_attenuation(
-        self, target_attenuation: float
+    def find_closest_transmission(
+        self, target_transmission: float
     ) -> AttenuatorCombination:
         """
         This could be faster if we implemented binary search,
         but that seems like overkill for our use case. The search space
         is small, so we start in the middle, and work up or down.
         """
-        available_attenuations = self._calculate_available_attentuations()
+        available_attenuations = self._calculate_available_transmissions()
         best_idx = len(available_attenuations) // 2
         atten = available_attenuations[best_idx].transmission
         diff = float("inf")
-        new_diff = abs(target_attenuation - atten)
-        inc = 1 if target_attenuation > atten else -1
+        new_diff = abs(target_transmission - atten)
+        inc = 1 if target_transmission > atten else -1
 
         while new_diff < diff:
             diff = new_diff
@@ -199,7 +201,7 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
             if best_idx + inc >= len(available_attenuations) or best_idx + inc < 0:
                 break
             atten = available_attenuations[best_idx + inc].transmission
-            new_diff = abs(target_attenuation - atten)
+            new_diff = abs(target_transmission - atten)
             if new_diff < diff:
                 best_idx += inc
             else:  # if diff did not change, then we have found the best option
@@ -208,23 +210,23 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         # requested attenuation and/or the difference?
         return available_attenuations[best_idx]
 
-    def _calculate_available_attentuations(self) -> list[AttenuatorCombination]:
+    def _calculate_available_transmissions(self) -> list[AttenuatorCombination]:
         """
-        It is more efficient to precompute all possible total
-        attenuations, and simply look up the closest one.
+        Calculates all possible transmissions for the attenuator bank, using
+        the powerset of the available attenuators.
         """
-        available_attenuations = []
+        available_transmissions = []
         for combination in self._powerset():
             attens = [self.attenuators[a] for a in self.attenuators if a in combination]
-            total_atten = self._calculate_total_attenuation(*attens)
-            available_attenuations.append(
-                AttenuatorCombination(total_atten, combination)
+            total_transmission = self._calculate_total_transmission(*attens)
+            available_transmissions.append(
+                AttenuatorCombination(total_transmission, combination)
             )
         # We want the available attenuations sorted so we can efficiently search through them
-        available_attenuations.sort(key=lambda a: a.transmission)  # type: ignore[attr-defined]
-        return available_attenuations
+        available_transmissions.sort(key=lambda a: a.transmission)  # type: ignore[attr-defined]
+        return available_transmissions
 
-    def _calculate_total_attenuation(self, *attenuators: Attenuator) -> float:
+    def _calculate_total_transmission(self, *attenuators: Attenuator) -> float:
         transmissions = [
             a.transmission(self.photon_energy, self.egu) for a in attenuators
         ]

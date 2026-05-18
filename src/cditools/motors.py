@@ -27,25 +27,56 @@ from scipy.interpolate import make_interp_spline
 
 class EpicsMotorRO(EpicsMotor):
     def __init__(self, prefix: str, *, name: str, **kwargs: Any) -> None:
+        """Creates an epics motor that is read only
+
+        Args:
+            prefix (str): motor prefix
+            name (str): motor name
+        """
         super().__init__(prefix=prefix, name=name, **kwargs)
 
     def move(self, *args: object, **kwargs: object):  # noqa: ARG002
+        """Move function to override the EpicsMotor class
+
+        Raises:
+            PermissionError: raised when trying to move the motor since it is read-only
+        """
         msg = f"{self.name} is read-only and cannot be moved."
         raise PermissionError(msg)
 
     def stop(self, *args: object, **kwargs: object):  # noqa: ARG002
+        """Stop function to override the EpicsMotor class
+
+        Raises:
+            PermissionError: raised when trying to stop the motor since it is read-only
+        """
         msg = f"{self.name} is read-only and cannot be stopped manually."
         raise PermissionError(msg)
 
     def set(self, *args: object, **kwargs: object):  # noqa: ARG002
+        """Set function to override the EpicsMotor class
+
+        Raises:
+            PermissionError: raised when trying to set the motor since it is read-only
+        """
         msg = f"{self.name} is read-only and cannot be set."
         raise PermissionError(msg)
 
     def set_position(self, *args: object, **kwargs: object):  # noqa: ARG002
+        """Set position function to override the EpicsMotor class
+
+        Raises:
+            PermissionError: raised when trying to set the motor since it is read-only
+        """
         msg = f"{self.name} is read-only and its position cannot be set."
         raise PermissionError(msg)
 
     def _readonly_put(self, *args: object, **kwargs: object):  # noqa: ARG002
+        """Read only put function for the epics motor
+
+        Raises:
+            PermissionError: raised when trying to write to the motor since it is read-only
+        """
         msg = f"{self.name} is read-only and cannot write PVs."
         raise PermissionError(msg)
 
@@ -106,7 +137,7 @@ class Energy(PseudoPositioner):
     bragg = Cpt(EpicsMotor, "Mono:HDCM-Ax:Bragg}Mtr")
     cgap = Cpt(EpicsMotor, "Mono:HDCM-Ax:HG}Mtr")
     # Synthetic Axis
-    energy = Cpt(PseudoSingle, egu="KeV")
+    energy = Cpt(PseudoSingle, egu="keV")
 
     energy_egu = Cpt(Signal, None, add_prefix=(), value="keV", kind="config")
     motor_egu = Cpt(Signal, None, add_prefix=(), value="eV", kind="config")
@@ -114,12 +145,12 @@ class Energy(PseudoPositioner):
     _u_gap_offset = 0
 
     # Energy "limits"
-    _low = 5.0  # TODO: CHECK THIS VALUE, SRX uses 4.4
-    _high = 15.0  # TODO: CHECK THIS VALUE, SRX uses 25
+    _low = 4.63
+    _high = 16.0
 
     # Set up constants
     Xoffset = 20.0  # mm
-    d_111 = 3.1286911960950756
+    d_111 = 3.135
     ANG_OVER_KEV = 12.3984
 
     # Motor enable flags
@@ -381,7 +412,7 @@ class Energy(PseudoPositioner):
 
     def retune_undulator(self):
         self.detune.put(0.0)
-        self.move(self.engergy.get()[0])
+        self.move(self.energy.get()[0])
 
     def banner(self, str_list: list[str] | str, border: str = "-"):
         if not isinstance(str_list, list):
@@ -438,24 +469,16 @@ class Energy(PseudoPositioner):
             bpm = detector_list[
                 0
             ]  # assume bpm is the first detector, need to figure out how to identify which detector is the bpm if there are multiple detectors
-            y = bpm.y.user_readback.get()  # Cu: y=0, Ti: y=25
-            if np.abs(y - 25) < 5:
-                foil = "Ti"
-            elif np.abs(y) < 5:
-                foil = "Cu"
+            y = bpm.y.user_readback.get()
+            if np.abs(y - 0) < 1:
+                foil = "in"
             else:
-                foil = ""
+                foil = "out"
                 self.banner("Unknown foil! Continuing without check!")
 
             if verbose:
                 print(f"Energy: {E:.4}")  # noqa: T201
                 print(f"Foil:\n  {y=:.4}\n  {foil=}")  # noqa: T201
-
-            threshold = 8.979  # DEFAULT? PASS AS ARG?
-            if (threshold < E and foil == "Ti") or (threshold > E and foil == "Cu"):
-                self.banner(
-                    "WARNING! BPM4 foil is not optimized for the incident energy."
-                )
 
         # Visualization
         livecb = []
@@ -528,7 +551,9 @@ class Energy(PseudoPositioner):
         return x0
 
     def set_roi(
-        self, roinum: int, element: Any, line: str | None = None, det: Any | None = None
+        self,
+        element: Any,
+        line: str | None = None,
     ) -> None:
         cur_element = xrfC.XrfElement(element)
         e = ""
@@ -552,22 +577,6 @@ class Energy(PseudoPositioner):
             line = None
         else:
             e = line.lower()
-
-        # this works for the xspress3, need to figure out how to generalize this for other detectors
-        channels = []
-        e_ch = int(cur_element.emission_line[e] * 1000)
-        if det is not None:
-            # need to figure this out
-            # SRX profile 48 line 76
-            channels = det.channels.get()
-
-        for channel in channels:
-            mcaroi = channel.get_mcaroi(mcaroi_number=roinum)
-            # TODO: add eV-to-bin conversion to xspress3 class
-            mcaroi.configure_mcaroi(
-                min_x=(e_ch - 100) / 10, size_x=200 / 10, roi_name=f"{element}_{e}"
-            )
-            mcaroi.kind = "hinted"
 
     def getemissionE(self, element: str, edge: str = "") -> float | None:
         cur_element = xrfC.XrfElement(element)
@@ -616,7 +625,7 @@ class Energy(PseudoPositioner):
 
     def mono_peakup(
         self,
-        element: str,
+        element: str = "none",
         peakup: bool = True,
         detectors: list[Device] | None = None,
         motors: list[Device] | None = None,
@@ -631,11 +640,12 @@ class Energy(PseudoPositioner):
             acquisition_time (float, optional): _description_. Defaults to 1.0.
             peakup (bool, optional): _description_. Defaults to True.
         """
-        self.getemissionE(element)
-        energy_x = self.getbindingE(element)
 
-        yield from bps.mov(self.energy, energy_x)
-        self.setroi(1, element)
+        if element != "none":
+            energy_x = self.getbindingE(element)
+            yield from bps.mov(self.energy, energy_x)
+            self.set_roi(1, element)
+
         if peakup:
             yield from bps.sleep(5)
             yield from self.peakup(

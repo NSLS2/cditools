@@ -89,14 +89,14 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
         """Closed means obstructing the beam"""
         await self.position.set(AttenuatorStatusEnum.HIGH)
 
+    def attenuation(self, photon_energy: float, egu: str = "KeV"):
+        """Attenuation is the fraction of the beam removed"""
+        return 1 - self.transmission(photon_energy, egu=egu)
+
     def transmission(self, photon_energy: float, egu: str = "KeV"):
         """Transmission is the fraction of beam remaining"""
         abs_len = self._absorption_length(photon_energy, egu=egu)
         return np.exp(-self.thickness / abs_len)
-
-    def attenuation(self, photon_energy: float, egu: str = "KeV"):
-        """Attenuation is the fraction of the beam removed"""
-        return 1 - self.transmission(photon_energy, egu=egu)
 
     def _absorption_length(self, photon_energy: float, egu: str = "KeV") -> float:
         """
@@ -152,9 +152,9 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
     def egu(self):
         return self.energy.egu
 
-    async def get_status(self):  # type: ignore[reportUnknownParameterType]
+    async def read(self):  # type: ignore[reportUnknownParameterType]
         """
-        Status polls the bluesky energy object for the current beam energy, and
+        Polls the bluesky energy object for the current beam energy, and
         returns that energy, each filter position, each transmission, and
         the total transmission.
         """
@@ -199,31 +199,10 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
     def find_closest_transmission(
         self, photon_energy: float, target_transmission: float
     ) -> AttenuatorCombination:
-        """
-        This could be faster if we implemented binary search,
-        but that seems like overkill for our use case. The search space
-        is small, so we start in the middle, and work up or down.
-        """
         available_attenuations = self._calculate_available_transmissions(photon_energy)
-        best_idx = len(available_attenuations) // 2
-        atten = available_attenuations[best_idx].transmission
-        diff = float("inf")
-        new_diff = abs(target_transmission - atten)
-        inc = 1 if target_transmission > atten else -1
-
-        while new_diff < diff:
-            diff = new_diff
-            # break if we are about to check outside the list
-            if best_idx + inc >= len(available_attenuations) or best_idx + inc < 0:
-                break
-            atten = available_attenuations[best_idx + inc].transmission
-            new_diff = abs(target_transmission - atten)
-            if new_diff < diff:
-                best_idx += inc
-            else:  # if diff did not change, then we have found the best option
-                break
-        # TODO - should return just the found attentuation? or also the
-        # requested attenuation and/or the difference?
+        best_idx = np.argmin(
+            [abs(target_transmission - _.transmission) for _ in available_attenuations]
+        )
         return available_attenuations[best_idx]
 
     def _calculate_available_transmissions(
@@ -231,7 +210,9 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
     ) -> list[AttenuatorCombination]:
         """
         Calculates all possible transmissions for the attenuator bank, using
-        the powerset of the available attenuators.
+        the powerset of the available attenuators. The result is not sorted,
+        as it is more efficient to scan linearly each time for the closest
+        match.
         """
         available_transmissions = []
         for combination in self._powerset():
@@ -242,8 +223,6 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
             available_transmissions.append(
                 AttenuatorCombination(total_transmission, combination)
             )
-        # We want the available attenuations sorted so we can efficiently search through them
-        available_transmissions.sort(key=lambda a: a.transmission)  # type: ignore[attr-defined]
         return available_transmissions
 
     def _calculate_total_transmission(

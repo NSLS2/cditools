@@ -155,9 +155,9 @@ class TestAttenuatorBank:
         atten_mock4.assert_called_with(AttenuatorStatusEnum.LOW)
 
     @pytest.mark.asyncio
-    async def test_get_status(self, mock_attenuator_bank: AttenuatorBank):
+    async def test_read(self, mock_attenuator_bank: AttenuatorBank):
         mock_attenuator_bank.set(1)
-        status = await mock_attenuator_bank.get_status()
+        status = await mock_attenuator_bank.read()
         assert status == {
             "active_attenuators": [],
             "photon_energy": 8.6,
@@ -180,7 +180,7 @@ class TestAttenuatorBank:
         set_mock_value(second_bank.attenuators[3].position, AttenuatorStatusEnum.HIGH)
         set_mock_value(second_bank.attenuators[4].position, AttenuatorStatusEnum.LOW)
 
-        status = await second_bank.get_status()
+        status = await second_bank.read()
         assert status == {
             "active_attenuators": [2, 3],
             "photon_energy": 12,

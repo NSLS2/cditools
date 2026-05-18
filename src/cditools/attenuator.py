@@ -143,13 +143,10 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
             )
         super().__init__(prefix=self.prefix)
 
-    # @property
-    # def photon_energy(self):
-    #     return self.energy.energy.readback.get()
+    def get_photon_energy(self):
+        return self.energy.energy.readback.get()
 
-    # TODO - make this not a property
-    @property
-    def egu(self):
+    def get_egu(self):
         return self.energy.egu
 
     async def read(self):  # type: ignore[reportUnknownParameterType]
@@ -160,8 +157,8 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         """
         status = {}
         active_attens = []
-        energy = self.energy.energy.readback.get()
-        egu = self.egu
+        energy = self.get_photon_energy()
+        egu = self.get_egu()
         positions = await asyncio.gather(
             *(a.position.get_value() for _, a in self.attenuators.items())
         )
@@ -183,8 +180,9 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
     @AsyncStatus.wrap
     async def set(self, value: float):
         """Set the transmission for the attenuator bank"""
-        photon_energy = self.energy.energy.readback.get()
-        attenuation_combination = self.find_closest_transmission(photon_energy, value)
+        attenuation_combination = self.find_closest_transmission(
+            self.get_photon_energy(), value
+        )
         coros = []
         for (
             num,
@@ -228,7 +226,9 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
     def _calculate_total_transmission(
         self, photon_energy: float, *attenuators: Attenuator
     ) -> float:
-        transmissions = [a.transmission(photon_energy, self.egu) for a in attenuators]
+        transmissions = [
+            a.transmission(photon_energy, self.get_egu()) for a in attenuators
+        ]
         return round(float(math.prod(transmissions)), 3)
 
     def _powerset(self) -> list[list[int]]:

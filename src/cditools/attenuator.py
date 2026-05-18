@@ -28,22 +28,30 @@ class AttenuatorCombination:
         return 1 - self.transmission
 
 
-THICKNESSES = (16, 24, 66, 124)  # microns
-
-
 class AttenuatorStatusEnum(StrictEnum):
     LOW = "Low"  # off / not obstructing
     HIGH = "High"  # on / obstructing
 
 
 class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
-    def __init__(self, prefix: str, num: int, material: str, thickness: int):
+    def __init__(self, prefix: str, num: int, material: str, thickness: float):
         """
-        prefix - the common prefix for the attenuator bank
-        num - an integer denoting which attenuator within the bank this is
-        thickness - the thickness of the attenuator in microns
+        Parameters
+        ----------
+        prefix : str
+            The common prefix for the attenuator bank
+        num : int
+            An integer denoting which attenuator within the bank this is
+        thickness : float
+            The thickness of the attenuator in microns
 
-        position - the read / write PV to open and close the attenuator
+        Attributes
+        ----------
+        position : SignalRW[AttenuatorStatusEnum]
+            The read / write PV to open and close the attenuator and get
+            the current state of the attenuator
+        mode : SignalRW[bool]
+        in_status : SignalR[AttenuatorStatusEnum]
         """
         self.prefix = prefix
         self.num = num
@@ -95,10 +103,17 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
         Calculates L, the characteristic absorption length of this material,
         at this beam energy.
 
-        photon energy: the beam energy
-        egu: the engineering units of the beam energy (KeV or eV)
-        absorption length: the characteristic absorption length of the
-            filter material (microns)
+        Parameters
+        ----------
+        photon energy : float
+            The beam energy
+        egu : {'KeV', 'eV'}
+            The engineering units of the beam energy
+
+        Returns
+        -------
+        float
+            The characteristic absorption length of the filter material (microns)
         """
         if egu == "KeV":
             photon_energy = photon_energy * 1e3
@@ -113,10 +128,8 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
     The ioc for the iologik1 lives on xf09id1-inst-ioc1.nsls2.bnl.gov
     """
 
-    thicknesses = THICKNESSES
-
     def __init__(
-        self, prefix: str, atten_configs: list[tuple[str, int]], energy: Energy
+        self, prefix: str, atten_configs: list[tuple[str, float]], energy: Energy
     ):
         self.prefix = prefix
         self.energy = energy
@@ -124,18 +137,17 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         with self.add_children_as_readables():
             self.attenuators = DeviceVector(
                 {
-                    i: Attenuator(
-                        self.prefix, i, atten_configs[i - 1][0], atten_configs[i - 1][1]
-                    )
-                    for i in range(1, len(atten_configs) + 1)
+                    i: Attenuator(self.prefix, i, material, thickness)
+                    for i, (material, thickness) in enumerate(atten_configs, start=1)
                 }
             )
         super().__init__(prefix=self.prefix)
 
-    @property
-    def photon_energy(self):
-        return self.energy.energy.readback.get()
+    # @property
+    # def photon_energy(self):
+    #     return self.energy.energy.readback.get()
 
+    # TODO - make this not a property
     @property
     def egu(self):
         return self.energy.egu
@@ -148,7 +160,7 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         """
         status = {}
         active_attens = []
-        en = self.photon_energy
+        energy = self.energy.energy.readback.get()
         egu = self.egu
         positions = await asyncio.gather(
             *(a.position.get_value() for _, a in self.attenuators.items())
@@ -158,20 +170,21 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
             is_active = pos == AttenuatorStatusEnum.HIGH
             if is_active:
                 active_attens.append(atten)
-            transmission = atten.transmission(en, egu) if is_active else 0
+            transmission = atten.transmission(energy, egu) if is_active else 0
             status[atten.name] = {"active": is_active, "transmission": transmission}
         status["active_attenuators"] = [a.num for a in active_attens]
-        status["photon_energy"] = en
+        status["photon_energy"] = energy
         status["egu"] = egu
         status["total_transmission"] = self._calculate_total_transmission(
-            *active_attens
+            energy, *active_attens
         )
         return status
 
     @AsyncStatus.wrap
     async def set(self, value: float):
         """Set the transmission for the attenuator bank"""
-        attenuation_combination = self.find_closest_transmission(value)
+        photon_energy = self.energy.energy.readback.get()
+        attenuation_combination = self.find_closest_transmission(photon_energy, value)
         coros = []
         for (
             num,
@@ -184,14 +197,14 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         await asyncio.gather(*coros)
 
     def find_closest_transmission(
-        self, target_transmission: float
+        self, photon_energy: float, target_transmission: float
     ) -> AttenuatorCombination:
         """
         This could be faster if we implemented binary search,
         but that seems like overkill for our use case. The search space
         is small, so we start in the middle, and work up or down.
         """
-        available_attenuations = self._calculate_available_transmissions()
+        available_attenuations = self._calculate_available_transmissions(photon_energy)
         best_idx = len(available_attenuations) // 2
         atten = available_attenuations[best_idx].transmission
         diff = float("inf")
@@ -213,7 +226,9 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         # requested attenuation and/or the difference?
         return available_attenuations[best_idx]
 
-    def _calculate_available_transmissions(self) -> list[AttenuatorCombination]:
+    def _calculate_available_transmissions(
+        self, photon_energy: float
+    ) -> list[AttenuatorCombination]:
         """
         Calculates all possible transmissions for the attenuator bank, using
         the powerset of the available attenuators.
@@ -221,7 +236,9 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         available_transmissions = []
         for combination in self._powerset():
             attens = [self.attenuators[a] for a in self.attenuators if a in combination]
-            total_transmission = self._calculate_total_transmission(*attens)
+            total_transmission = self._calculate_total_transmission(
+                photon_energy, *attens
+            )
             available_transmissions.append(
                 AttenuatorCombination(total_transmission, combination)
             )
@@ -229,10 +246,10 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         available_transmissions.sort(key=lambda a: a.transmission)  # type: ignore[attr-defined]
         return available_transmissions
 
-    def _calculate_total_transmission(self, *attenuators: Attenuator) -> float:
-        transmissions = [
-            a.transmission(self.photon_energy, self.egu) for a in attenuators
-        ]
+    def _calculate_total_transmission(
+        self, photon_energy: float, *attenuators: Attenuator
+    ) -> float:
+        transmissions = [a.transmission(photon_energy, self.egu) for a in attenuators]
         return round(float(math.prod(transmissions)), 3)
 
     def _powerset(self) -> list[list[int]]:

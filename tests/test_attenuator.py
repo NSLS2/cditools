@@ -18,7 +18,7 @@ from cditools.motors import Energy
 pytest_plugins = ("pytest_asyncio",)
 photon_energy = 8.6  # KeV
 prefix = "test-prefix"
-attenuator_configs = [("Al", 16), ("Al", 24), ("Al", 66), ("Al", 124)]
+attenuator_configs = [("Al", 16.0), ("Al", 24.0), ("Al", 66.0), ("Al", 124.0)]
 
 # These are the attenuations at photon_energy = 8.6 KeV
 TEST_ATTENUATIONS = [
@@ -100,13 +100,13 @@ class TestAttenuatorBank:
         self, mock_attenuator_bank: AttenuatorBank
     ):
         assert mock_attenuator_bank.energy.energy.readback.get() == 8.6
-        assert mock_attenuator_bank.photon_energy == 8.6
+        # assert mock_attenuator_bank.photon_energy == 8.6
 
         second_energy = MagicMock(spec=Energy)
         second_energy.energy.readback.get.return_value = 6
         second_bank = AttenuatorBank(prefix, attenuator_configs, second_energy)
         assert second_bank.energy.energy.readback.get() == 6
-        assert second_bank.photon_energy == 6
+        # assert second_bank.photon_energy == 6
 
     @pytest.mark.asyncio
     async def test_attenuators_indexed_at_1(self, mock_attenuator_bank: AttenuatorBank):
@@ -199,20 +199,22 @@ class TestAttenuatorBank:
         }
 
     def test_find_closest_attenuation(self, mock_attenuator_bank: AttenuatorBank):
-        nearest = mock_attenuator_bank.find_closest_transmission(0.7)
+        en = mock_attenuator_bank.energy.energy.readback.get()
+        nearest = mock_attenuator_bank.find_closest_transmission(en, 0.7)
         assert nearest.transmission == 0.65
 
-        nearest2 = mock_attenuator_bank.find_closest_transmission(0.2)
+        nearest2 = mock_attenuator_bank.find_closest_transmission(en, 0.2)
         assert nearest2.transmission == 0.203
 
-        nearest3 = mock_attenuator_bank.find_closest_transmission(0.02)
+        nearest3 = mock_attenuator_bank.find_closest_transmission(en, 0.02)
         assert nearest3.transmission == 0.084
 
-        nearest4 = mock_attenuator_bank.find_closest_transmission(0.98)
+        nearest4 = mock_attenuator_bank.find_closest_transmission(en, 0.98)
         assert nearest4.transmission == 1
 
     def test_find_closest_attenuation_with_alt_energies(
         self, mock_attenuator_bank: AttenuatorBank
     ):
-        nearest = mock_attenuator_bank.find_closest_transmission(0.7)
+        en = mock_attenuator_bank.energy.energy.readback.get()
+        nearest = mock_attenuator_bank.find_closest_transmission(en, 0.7)
         assert nearest == AttenuatorCombination(transmission=0.65, attenuators=[1, 2])

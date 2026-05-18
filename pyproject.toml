@@ -171,6 +171,9 @@ cditools = { path = ".", editable = true }
 [tool.pixi.dependencies]
 xrayutilities = ">=1.7.12,<2"
 
+[tool.pixi.feature.dev.tasks]
+format = "ruff format ."
+
 [tool.pixi.environments]
 default = { solve-group = "default" }
 dev = { features = ["dev"], solve-group = "default" }

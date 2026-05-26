@@ -340,7 +340,7 @@ class Energy(PseudoPositioner):
 
     @pseudo_position_argument
     def forward(self, pseudo_pos: object):
-        """ Computes the energy, bragg, and real position
+        """Computes the energy, bragg, and real position
 
         Args:
             pseudo_pos (object): The pseudo position containing the target energy
@@ -406,7 +406,7 @@ class Energy(PseudoPositioner):
 
     @real_position_argument
     def inverse(self, real_pos: _RealPosWithBragg):
-        """ Computes the inverse of the energy
+        """Computes the inverse of the energy
 
         Args:
             real_pos (_RealPosWithBragg): current computed position containing the bragg angle, c2_x, and undulator gap
@@ -432,8 +432,7 @@ class Energy(PseudoPositioner):
 
     # TO DO:
     def sync_with_epics(self):
-        """ This is going to be changed from syncing with epics to keeping a variable local in python
-        """
+        """This is going to be changed from syncing with epics to keeping a variable local in python"""
         self.epics_d_spacing.put(self._d_111)
         self.epics_bragg_offset.put(self._delta_bragg)
 
@@ -475,7 +474,7 @@ class Energy(PseudoPositioner):
         MAX_ITER: int = 100,
         verbose: bool = False,
     ) -> Generator[Msg, Any, None]:
-        """ Peakup scan on a given motor and detector(s)
+        """Peakup scan on a given motor and detector(s)
 
         Args:
             detectors (list[Any] | Any): list of detectors or single detector to be used for optimization
@@ -620,7 +619,7 @@ class Energy(PseudoPositioner):
         element: Any,
         line: str | None = None,
     ) -> None:
-        """ sets the ROI for the peakup scan
+        """sets the ROI for the peakup scan
 
         Args:
             element (Any): description of the element to set the ROI for, can be a string or an xrfC.XrfElement object
@@ -650,7 +649,7 @@ class Energy(PseudoPositioner):
             e = line.lower()
 
     def getemissionE(self, element: str, edge: str = "") -> float | None:
-        """ Gets the emission element 
+        """Gets the emission element
 
         Args:
             element (str): element symbol for target

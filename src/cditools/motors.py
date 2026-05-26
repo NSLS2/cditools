@@ -340,6 +340,14 @@ class Energy(PseudoPositioner):
 
     @pseudo_position_argument
     def forward(self, pseudo_pos: object):
+        """ Computes the energy, bragg, and real position
+
+        Args:
+            pseudo_pos (object): The pseudo position containing the target energy
+
+        Returns:
+            tuple: calculated real position containing the bragg angle, c2_x, and undulator gap
+        """
         energy = pseudo_pos.energy  # energy assumed in keV
         bragg, _, _, _ = self.energy_to_positions(energy)
         harmonic_raw = self.harmonic.get()
@@ -398,23 +406,51 @@ class Energy(PseudoPositioner):
 
     @real_position_argument
     def inverse(self, real_pos: _RealPosWithBragg):
+        """ Computes the inverse of the energy
+
+        Args:
+            real_pos (_RealPosWithBragg): current computed position containing the bragg angle, c2_x, and undulator gap
+
+        Returns:
+            PseudoPosition: computed pseudo position containing the energy
+        """
         bragg = np.deg2rad(real_pos.bragg)
         e = self.ANG_OVER_KEV / (2 * self.d_111 * np.sin(bragg))
         return self.PseudoPosition(energy=float(e))
 
     @pseudo_position_argument
     def set(self, position: list[int | float]):
+        """Sets the pseudo position
+
+        Args:
+            position (list[int  |  float]): list of values representing the pseudo position
+
+        Returns:
+            PseudoPosition: the set pseudo position
+        """
         return super().set([float(_) for _ in position])
 
+    # TO DO:
     def sync_with_epics(self):
+        """ This is going to be changed from syncing with epics to keeping a variable local in python
+        """
         self.epics_d_spacing.put(self._d_111)
         self.epics_bragg_offset.put(self._delta_bragg)
 
     def retune_undulator(self):
+        """
+        Sets the tune back to zero and moves based on energy
+        """
         self.detune.put(0.0)
         self.move(self.energy.get()[0])
 
     def banner(self, str_list: list[str] | str, border: str = "-"):
+        """Prints a banner message given a string list
+
+        Args:
+            str_list (list[str] | str): a list of strings or a single string to print in the banner
+            border (str, optional): the character to use for the border. Defaults to "-".
+        """
         if not isinstance(str_list, list):
             str_list = [str_list]
 
@@ -439,6 +475,20 @@ class Energy(PseudoPositioner):
         MAX_ITER: int = 100,
         verbose: bool = False,
     ) -> Generator[Msg, Any, None]:
+        """ Peakup scan on a given motor and detector(s)
+
+        Args:
+            detectors (list[Any] | Any): list of detectors or single detector to be used for optimization
+            start (float | None, optional): starting position for the scan. Defaults to None.
+            min_step (float, optional): minimum step size for the scan. Defaults to 0.005.
+            max_step (float, optional): maximum step size for the scan. Defaults to 0.5.
+            motor (Any, optional): motor to be used for the scan. Defaults to None.
+            target_fields (list[str], optional): fields to be optimized. Defaults to ["bpm_current", "bpm_sum"].
+            verbose (bool, optional): whether to print verbose output. Defaults to False.
+
+        Yields:
+            Generator[Msg, Any, None]: scan det optimization to be processed by bluesky
+        """
         if motor is None:
             msg = "peakup requires a motor to move. Please provide a motor to optimize."
             raise ValueError(msg)
@@ -487,6 +537,21 @@ class Energy(PseudoPositioner):
 
         # Optimize on a given detector
         def optimize_on_det(target_field: str, x0: float) -> Generator[Msg, Any, float]:
+            """Optimize a motor position based on a target field from a detector.
+
+            Args:
+                target_field (str): name of the target field to optimize on
+                x0 (float): initial position of the motor
+
+            Raises:
+                Exception: if the optimization does not converge
+
+            Returns:
+                float: optimized motor position
+
+            Yields:
+                Generator[Msg, Any, float]: messages for the optimization process
+            """
             past_pos = x0
             next_pos = x0
             step = max_step
@@ -555,6 +620,12 @@ class Energy(PseudoPositioner):
         element: Any,
         line: str | None = None,
     ) -> None:
+        """ sets the ROI for the peakup scan
+
+        Args:
+            element (Any): description of the element to set the ROI for, can be a string or an xrfC.XrfElement object
+            line (str | None, optional): emission line to use for the ROI. Defaults to None.
+        """
         cur_element = xrfC.XrfElement(element)
         e = ""
         if line is None:
@@ -579,6 +650,15 @@ class Energy(PseudoPositioner):
             e = line.lower()
 
     def getemissionE(self, element: str, edge: str = "") -> float | None:
+        """ Gets the emission element 
+
+        Args:
+            element (str): element symbol for target
+            edge (str, optional): edge energy to use. Defaults to "".
+
+        Returns:
+            float | None: _rounded current element emission line
+        """
         cur_element = xrfC.XrfElement(element)
         if edge == "":
             print("Edge\tEnergy [keV]")  # noqa: T201

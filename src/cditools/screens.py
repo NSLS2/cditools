@@ -51,7 +51,6 @@ class FullROIStats(ROIStatPlugin_V35):
 class ProsilicaCamBase(ProsilicaDetector):
     wait_for_plugins = Cpt(EpicsSignal, "WaitForPlugins", string=True, kind="hinted")
     cam = Cpt(ProsilicaDetectorCam, "cam1:")
-    image = Cpt(ImagePlugin, "image1:")
     stats1 = Cpt(StatsPlugin, "Stats1:")
     stats2 = Cpt(StatsPlugin, "Stats2:")
     stats3 = Cpt(StatsPlugin, "Stats3:")
@@ -92,11 +91,10 @@ class StandardProsilicaCam(SingleTrigger, ProsilicaCamBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._default_plugin_graph = {
-            self.image: self.cam,
-            self.stats1: self.cam,
-            self.stats2: self.cam,
-            self.stats3: self.cam,
-            self.stats4: self.cam,
+            self.stats1: self.roi1,
+            self.stats2: self.roi2,
+            self.stats3: self.roi3,
+            self.stats4: self.roi4,
             self.stats5: self.cam,
             self.trans1: self.cam,
             self.roi1: self.cam,

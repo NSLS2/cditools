@@ -430,12 +430,6 @@ class Energy(PseudoPositioner):
         """
         return super().set([float(_) for _ in position])
 
-    # TO DO:
-    def sync_with_epics(self):
-        """This is going to be changed from syncing with epics to keeping a variable local in python"""
-        self.epics_d_spacing.put(self._d_111)
-        self.epics_bragg_offset.put(self._delta_bragg)
-
     def retune_undulator(self):
         """
         Sets the tune back to zero and moves based on energy

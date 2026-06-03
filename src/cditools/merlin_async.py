@@ -10,14 +10,16 @@ from typing import Annotated as A
 
 from ophyd_async.core import (
     DetectorTriggerLogic,
+    DetectorArmLogic,
     PathProvider,
     SignalDict,
     SignalR,
     SignalRW,
-    StrictEnum,
+    SubsetEnum,
+    soft_signal_rw,
 )
 from ophyd_async.epics.adcore import (
-    ADArmLogic,
+    ADBaseDataType,
     ADBaseIO,
     ADWriterType,
     AreaDetector,
@@ -36,14 +38,14 @@ __all__ = [
 _MIN_DEAD_TIME = 0.002
 
 
-class MerlinTriggerMode(StrictEnum):
+class MerlinTriggerMode(SubsetEnum):
     """Trigger modes for the Merlin detector"""
 
     INTERNAL = "Internal"
     TRIGGER_ENABLE = "Trigger Enable"
     TRIGGER_START_RISING = "Trigger start rising"
     TRIGGER_START_FALLING = "Trigger start falling"
-    TRIGGER_BOTH_RISING = "Trigger both rising"
+    TRIGGER_BOTH_RISING = "Trigger both rising "
     SOFTWARE = "Software"
 
 
@@ -55,6 +57,14 @@ class MerlinDriverIO(ADBaseIO):
     """
 
     trigger_mode: A[SignalRW[MerlinTriggerMode], PvSuffix.rbv("TriggerMode")]
+
+    # Since ADMerlin doesn't set the data type readback correctly, but is always uint16,
+    # just turn it into a static soft signal
+    def __init__(self, prefix: str, name: str = ""):
+        super().__init__(prefix, name=name)
+        self.data_type = soft_signal_rw(
+            ADBaseDataType, ADBaseDataType.UINT16, name="data_type"
+        )
 
 
 # The deadtime of an Merlin controller varies depending on the exact model of camera.
@@ -74,7 +84,6 @@ class MerlinTriggerLogic(DetectorTriggerLogic):
         await prepare_exposures(self.driver, num, livetime, deadtime)
 
     async def prepare_edge(self, num: int, livetime: float):
-        # Is this the right trigger mode?
         await self.driver.trigger_mode.set(MerlinTriggerMode.TRIGGER_START_RISING)
         await prepare_exposures(self.driver, num, livetime)
 
@@ -110,7 +119,7 @@ class MerlinDetector(AreaDetector[MerlinDriverIO]):
         super().__init__(
             prefix=prefix,
             driver=driver,
-            arm_logic=ADArmLogic(driver),
+            arm_logic=DetectorArmLogic(driver),
             trigger_logic=MerlinTriggerLogic(driver),
             path_provider=path_provider,
             writer_type=writer_type,

@@ -46,6 +46,16 @@ class MerlinTriggerMode(StrictEnum):
     TRIGGER_BOTH_RISING = "Trigger both rising"
     SOFTWARE = "Software"
 
+class MerlinTriggerModeRBV(StrictEnum):
+    """Trigger modes for the Merlin detector"""
+
+    INTERNAL = "Internal"
+    TRIGGER_ENABLE = "Trigger Enable"
+    TRIGGER_START_RISING = "Trigger start rising"
+    TRIGGER_START_FALLING = "Trigger start falling"
+    TRIGGER_BOTH_RISING = "Trigger both rising "
+    SOFTWARE = "Software"
+
 
 class MerlinDriverIO(ADBaseIO):
     """Driver for merlin model:DU897_BV as deployed on p99.

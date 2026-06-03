@@ -10,6 +10,7 @@ from typing import Annotated as A
 
 from ophyd_async.core import (
     DetectorTriggerLogic,
+    DetectorArmLogic,
     PathProvider,
     SignalDict,
     SignalR,
@@ -17,7 +18,6 @@ from ophyd_async.core import (
     StrictEnum,
 )
 from ophyd_async.epics.adcore import (
-    ADArmLogic,
     ADBaseIO,
     ADWriterType,
     AreaDetector,
@@ -110,7 +110,7 @@ class MerlinDetector(AreaDetector[MerlinDriverIO]):
         super().__init__(
             prefix=prefix,
             driver=driver,
-            arm_logic=ADArmLogic(driver),
+            arm_logic=DetectorArmLogic(driver),
             trigger_logic=MerlinTriggerLogic(driver),
             path_provider=path_provider,
             writer_type=writer_type,

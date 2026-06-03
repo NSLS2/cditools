@@ -49,15 +49,6 @@ class MerlinTriggerMode(SubsetEnum):
     TRIGGER_BOTH_RISING = "Trigger both rising"
     SOFTWARE = "Software"
 
-# class MerlinTriggerModeRBV(SubsetEnum):
-#     """Trigger modes for the Merlin detector"""
-
-#     INTERNAL = "Internal"
-#     TRIGGER_ENABLE = "Trigger Enable"
-#     TRIGGER_START_RISING = "Trigger start rising"
-#     TRIGGER_START_FALLING = "Trigger start falling"
-#     TRIGGER_BOTH_RISING = "Trigger both rising "
-#     SOFTWARE = "Software"
 
 class MerlinTriggerModeRBV(StrictEnum):
     """Trigger modes for the Merlin detector"""
@@ -79,7 +70,7 @@ class MerlinDriverIO(ADBaseIO):
 
     trigger_mode: A[SignalRW[MerlinTriggerMode], PvSuffix.rbv("TriggerMode")]
 
-    # Since ADMerlin doesn't set the data type readback correctly, but is always uint16, 
+    # Since ADMerlin doesn't set the data type readback correctly, but is always uint16,
     # just turn it into a static soft signal
     def __init__(self, prefix: str, name: str = ""):
         super().__init__(prefix, name=name)
@@ -103,7 +94,6 @@ class MerlinTriggerLogic(DetectorTriggerLogic):
         await prepare_exposures(self.driver, num, livetime, deadtime)
 
     async def prepare_edge(self, num: int, livetime: float):
-        # Is this the right trigger mode?
         await self.driver.trigger_mode.set(MerlinTriggerMode.TRIGGER_START_RISING)
         await prepare_exposures(self.driver, num, livetime)
 
@@ -148,4 +138,3 @@ class MerlinDetector(AreaDetector[MerlinDriverIO]):
             config_sigs=config_sigs,
             name=name,
         )
-

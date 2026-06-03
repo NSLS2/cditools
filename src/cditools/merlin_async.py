@@ -15,16 +15,15 @@ from ophyd_async.core import (
     SignalR,
     SignalRW,
     StrictEnum,
-    SubsetEnum,
-    soft_signal_rw
+    soft_signal_rw,
 )
 from ophyd_async.epics.adcore import (
     ADArmLogic,
+    ADBaseDataType,
     ADBaseIO,
     ADWriterType,
     AreaDetector,
     NDPluginBaseIO,
-    ADBaseDataType,
     prepare_exposures,
     trigger_info_from_num_images,
 )
@@ -74,7 +73,9 @@ class MerlinDriverIO(ADBaseIO):
     # just turn it into a static soft signal
     def __init__(self, prefix: str, name: str = ""):
         super().__init__(prefix, name=name)
-        self.data_type = soft_signal_rw(ADBaseDataType, ADBaseDataType.UINT16, name="data_type")
+        self.data_type = soft_signal_rw(
+            ADBaseDataType, ADBaseDataType.UINT16, name="data_type"
+        )
 
 
 # The deadtime of an Merlin controller varies depending on the exact model of camera.

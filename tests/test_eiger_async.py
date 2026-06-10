@@ -24,7 +24,7 @@ from ophyd_async.core import (
     TriggerInfo,
     init_devices,
 )
-from ophyd_async.epics.adcore import ADBaseDatasetDescriber, ADBaseDataType, ADImageMode
+from ophyd_async.epics.adcore import ADBaseDataType, ADImageMode
 from ophyd_async.testing import (
     callback_on_mock_put,
     set_mock_value,
@@ -33,11 +33,11 @@ from tiled.client.container import Container
 
 from cditools.eiger_async import (
     EigerController,
+    EigerDataLogic,
     EigerDataSource,
     EigerDetector,
     EigerDriverIO,
     EigerTriggerMode,
-    EigerWriter,
 )
 
 EIGER_DATA_PATH = Path("/tmp/pytest/eiger_data/")
@@ -139,13 +139,12 @@ def mock_path_provider() -> PathProvider:
 def eiger_writer(
     mock_eiger_driver: EigerDriverIO,
     mock_path_provider: PathProvider,
-) -> Generator[EigerWriter, None, None]:
+) -> Generator[EigerDataLogic, None, None]:
     """Create an EigerWriter instance for testing."""
     if not EIGER_DATA_PATH.exists():
         EIGER_DATA_PATH.mkdir(parents=True)
     assert EIGER_DATA_PATH.exists()
-    dataset_describer = ADBaseDatasetDescriber(mock_eiger_driver)
-    yield EigerWriter(mock_eiger_driver, mock_path_provider, dataset_describer)
+    yield EigerWriter(mock_eiger_driver, mock_path_provider)
     if EIGER_DATA_PATH.exists():
         shutil.rmtree(EIGER_DATA_PATH)
 
@@ -157,11 +156,11 @@ def eiger_controller(mock_eiger_driver: EigerDriverIO) -> EigerController:
 
 @pytest.mark.asyncio
 async def test_eiger_writer_initialization(
-    eiger_writer: EigerWriter,
+    eiger_writer: EigerDataLogic,
     mock_eiger_driver: EigerDriverIO,
     mock_path_provider: PathProvider,
 ):
-    """Test that EigerWriter initializes correctly."""
+    """Test that EigerDataLogic initializes correctly."""
     assert eiger_writer.fileio is mock_eiger_driver
     assert eiger_writer._path_provider is mock_path_provider  # type: ignore[reportPrivateUsage]
     assert eiger_writer._dataset_describer is not None  # type: ignore[reportPrivateUsage]
@@ -170,7 +169,7 @@ async def test_eiger_writer_initialization(
 
 @pytest.mark.asyncio
 async def test_eiger_writer_open(
-    eiger_writer: EigerWriter,
+    eiger_writer: EigerDataLogic,
     mock_eiger_driver: EigerDriverIO,
 ) -> None:
     """Test the open method configures the detector correctly."""
@@ -234,7 +233,7 @@ async def test_eiger_writer_open(
 
 @pytest.mark.asyncio
 async def test_eiger_writer_get_indices_written(
-    eiger_writer: EigerWriter,
+    eiger_writer: EigerDataLogic,
     mock_eiger_driver: EigerDriverIO,
 ):
     """Test getting the number of indices written."""
@@ -286,7 +285,7 @@ async def test_eiger_writer_get_indices_written(
 
 @pytest.mark.asyncio
 async def test_eiger_writer_observe_indices_written(
-    eiger_writer: EigerWriter,
+    eiger_writer: EigerDataLogic,
     mock_eiger_driver: EigerDriverIO,
 ) -> None:
     """Test observing indices as they are written."""
@@ -360,7 +359,7 @@ async def test_eiger_writer_observe_indices_written(
 
 @pytest.mark.asyncio
 async def test_eiger_writer_collect_stream_docs(
-    eiger_writer: EigerWriter,
+    eiger_writer: EigerDataLogic,
     mock_eiger_driver: EigerDriverIO,
 ) -> None:
     """Test collecting stream documents."""
@@ -417,7 +416,7 @@ async def test_eiger_writer_collect_stream_docs(
 
 @pytest.mark.asyncio
 async def test_eiger_writer_close(
-    eiger_writer: EigerWriter,
+    eiger_writer: EigerDataLogic,
     mock_eiger_driver: EigerDriverIO,
 ) -> None:
     """Test closing the writer."""

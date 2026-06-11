@@ -574,15 +574,21 @@ async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
     # Case 1 - Step Scan: stage, trigger, read, trigger, read, unstage
     await mock_eiger_detector.stage()
     await mock_eiger_detector.trigger()
+    print(2)
     assert (
         await mock_eiger_detector.driver.data_source.get_value()
         == EigerDataSource.FILE_WRITER
     )
+    print(3)
     await mock_eiger_detector.read()
+    print(4)
     await mock_eiger_detector.trigger()
+    print(5)
     await mock_eiger_detector.read()
+    print(6)
     await mock_eiger_detector.unstage()
 
+    print(7)
     set_mock_value(mock_eiger_detector.data_logic.fileio.array_counter, 0)
     set_mock_value(mock_eiger_detector.driver.num_images_counter, 0)
     # Case 2 - Fly Scan: prepare, kickoff, complete

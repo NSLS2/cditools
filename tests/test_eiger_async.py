@@ -158,7 +158,6 @@ async def eiger_writer(
         datalogic = EigerDataLogic(mock_eiger_driver, mock_path_provider)
 
         async def sync_fileio_armed(value: bool):
-            print('here'*10)
             set_mock_value(datalogic.fileio.armed, value)
 
         callback_on_mock_put(datalogic.fileio.acquire, sync_fileio_armed)
@@ -504,7 +503,7 @@ async def test_eiger_controller_prepare_internal(eiger_controller: EigerControll
         await eiger_controller.driver.trigger_mode.get_value()
         == EigerTriggerMode.INTERNAL_SERIES
     )
-    assert await eiger_controller.driver.num_images.get_value() == 1
+    assert await eiger_controller.driver.num_triggers.get_value() == 1
     assert await eiger_controller.driver.image_mode.get_value() == ADImageMode.MULTIPLE
 
 @pytest.mark.asyncio
@@ -515,7 +514,7 @@ async def test_eiger_controller_prepare_edge(eiger_controller: EigerController) 
         await eiger_controller.driver.trigger_mode.get_value()
         == EigerTriggerMode.EXTERNAL_SERIES
     )
-    assert await eiger_controller.driver.num_images.get_value() == 5
+    assert await eiger_controller.driver.num_triggers.get_value() == 5
     assert await eiger_controller.driver.image_mode.get_value() == ADImageMode.MULTIPLE
 
 
@@ -547,13 +546,16 @@ async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
     set_mock_value(mock_eiger_detector.driver.num_images, 1)
     set_mock_value(mock_eiger_detector.driver.acquire_period, 0.001)
     set_mock_value(mock_eiger_detector.data_logic.fileio.array_counter, 0)
+    set_mock_value(mock_eiger_detector.driver.num_images_counter, 0)
 
-    async def _simulate_one_trigger(value: bool, wait: bool) -> None:
+    async def _simulate_one_trigger(value: bool) -> None:
         await asyncio.sleep(await mock_eiger_detector.driver.acquire_period.get_value())
         array_counter = await mock_eiger_detector.data_logic.fileio.array_counter.get_value()
         set_mock_value(mock_eiger_detector.data_logic.fileio.array_counter, array_counter + 1)
+        num_images_counter = await mock_eiger_detector.driver.num_images_counter.get_value()
+        set_mock_value(mock_eiger_detector.driver.num_images_counter, num_images_counter + 1)
 
-    callback_on_mock_put(mock_eiger_detector.driver.acquire, _simulate_one_trigger)
+    callback_on_mock_put(mock_eiger_detector.driver.trigger, _simulate_one_trigger)
 
     # Standalone methods
     await mock_eiger_detector.prepare(
@@ -572,16 +574,23 @@ async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
     # Case 1 - Step Scan: stage, trigger, read, trigger, read, unstage
     await mock_eiger_detector.stage()
     await mock_eiger_detector.trigger()
+    print(2)
     assert (
         await mock_eiger_detector.driver.data_source.get_value()
         == EigerDataSource.FILE_WRITER
     )
+    print(3)
     await mock_eiger_detector.read()
+    print(4)
     await mock_eiger_detector.trigger()
+    print(5)
     await mock_eiger_detector.read()
+    print(6)
     await mock_eiger_detector.unstage()
 
+    print(7)
     set_mock_value(mock_eiger_detector.data_logic.fileio.array_counter, 0)
+    set_mock_value(mock_eiger_detector.driver.num_images_counter, 0)
     # Case 2 - Fly Scan: prepare, kickoff, complete
     await mock_eiger_detector.prepare(
         TriggerInfo(

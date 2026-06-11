@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import shutil
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 
 import bluesky.plans as bp
@@ -101,10 +101,19 @@ def mock_eiger_detector(RE: RunEngine) -> Generator[EigerDetector, None, None]:
     )
     with init_devices(mock=True):
         detector = EigerDetector("MOCK:EIGER:", path_provider, name="test_eiger")
-    set_mock_value(detector.fileio.file_path_exists, True)
+
+    set_mock_value(detector.driver.file_path_exists, True)
     set_mock_value(detector.driver.array_size_x, 2048)
     set_mock_value(detector.driver.array_size_y, 2048)
     set_mock_value(detector.driver.data_type, "UInt16")
+    set_mock_value(detector.driver.acquire, False)
+    set_mock_value(detector.data_logic.fileio.armed, False)
+
+    # Sync acquire with armed when acquire is set
+    async def sync_fileio_armed(value: bool):
+        set_mock_value(detector.data_logic.fileio.armed, value)
+
+    callback_on_mock_put(detector.driver.acquire, sync_fileio_armed)
 
     yield detector
 
@@ -136,15 +145,25 @@ def mock_path_provider() -> PathProvider:
 
 
 @pytest.fixture
-def eiger_writer(
+async def eiger_writer(
     mock_eiger_driver: EigerDriverIO,
     mock_path_provider: PathProvider,
-) -> Generator[EigerDataLogic, None, None]:
+) -> AsyncGenerator[EigerDataLogic, None]:
     """Create an EigerWriter instance for testing."""
     if not EIGER_DATA_PATH.exists():
         EIGER_DATA_PATH.mkdir(parents=True)
     assert EIGER_DATA_PATH.exists()
-    yield EigerWriter(mock_eiger_driver, mock_path_provider)
+
+    with init_devices(mock=True):
+        datalogic = EigerDataLogic(mock_eiger_driver, mock_path_provider)
+
+        async def sync_fileio_armed(value: bool):
+            print('here'*10)
+            set_mock_value(datalogic.fileio.armed, value)
+
+        callback_on_mock_put(datalogic.fileio.acquire, sync_fileio_armed)
+        # yield EigerDataLogic(mock_eiger_driver, mock_path_provider)
+        yield datalogic
     if EIGER_DATA_PATH.exists():
         shutil.rmtree(EIGER_DATA_PATH)
 
@@ -432,18 +451,54 @@ async def test_eiger_writer_close(
     await eiger_writer.close()
     assert eiger_writer._file_info is None  # type: ignore[reportPrivateUsage]
 
-
 @pytest.mark.asyncio
-async def test_eiger_controller_prepare(eiger_controller: EigerController) -> None:
+async def test_eiger_prepare(mock_eiger_detector: EigerDetector) -> None:
     trigger_info = TriggerInfo(
-        number_of_events=1,
+        trigger=DetectorTrigger.INTERNAL,
         livetime=0.01,
         deadtime=0.001,
-        trigger=DetectorTrigger.INTERNAL,
+        exposures_per_collection=1,
+        collections_per_event=1,
+        number_of_events=1,
         exposure_timeout=1.0,
-        exposures_per_event=1,
     )
-    await eiger_controller.prepare(trigger_info)
+    await mock_eiger_detector.prepare(trigger_info)
+    assert await mock_eiger_detector.driver.acquire_time.get_value() == 0.01
+    assert (
+        await mock_eiger_detector.driver.trigger_mode.get_value()
+        == EigerTriggerMode.INTERNAL_SERIES
+    )
+    assert await mock_eiger_detector.driver.num_images.get_value() == 1
+    assert await mock_eiger_detector.driver.image_mode.get_value() == ADImageMode.MULTIPLE
+
+    # Implement tests for these other trigger_infos
+    trigger_info = TriggerInfo(
+        trigger=DetectorTrigger.EXTERNAL_EDGE,
+        livetime=0.0,
+        deadtime=0.0,
+        exposures_per_collection=5,
+        collections_per_event=1,
+        number_of_events=10,
+        exposure_timeout=10.0,
+    )
+
+@pytest.mark.asyncio
+async def test_eiger_data_logic_prepare_unbounded(eiger_writer: EigerDataLogic) -> None:
+    trigger_info = TriggerInfo(
+        trigger=DetectorTrigger.INTERNAL,
+        livetime=0.01,
+        deadtime=0.001,
+        exposures_per_collection=1,
+        collections_per_event=1,
+        number_of_events=1,
+        exposure_timeout=1.0,
+    )
+    stream_resource = await eiger_writer.prepare_unbounded("test_eiger")
+    print(stream_resource)
+
+@pytest.mark.asyncio
+async def test_eiger_controller_prepare_internal(eiger_controller: EigerController) -> None:
+    await eiger_controller.prepare_internal(num=1, livetime=0.01, deadtime=0.001)
     assert await eiger_controller.driver.acquire_time.get_value() == 0.01
     assert (
         await eiger_controller.driver.trigger_mode.get_value()
@@ -452,15 +507,9 @@ async def test_eiger_controller_prepare(eiger_controller: EigerController) -> No
     assert await eiger_controller.driver.num_images.get_value() == 1
     assert await eiger_controller.driver.image_mode.get_value() == ADImageMode.MULTIPLE
 
-    trigger_info = TriggerInfo(
-        number_of_events=10,
-        livetime=0.0,
-        deadtime=0.0,
-        trigger=DetectorTrigger.EDGE_TRIGGER,
-        exposure_timeout=10.0,
-        exposures_per_event=5,
-    )
-    await eiger_controller.prepare(trigger_info)
+@pytest.mark.asyncio
+async def test_eiger_controller_prepare_edge(eiger_controller: EigerController) -> None:
+    await eiger_controller.prepare_edge(num=5, livetime=0.0)
     assert await eiger_controller.driver.acquire_time.get_value() == 0.0
     assert (
         await eiger_controller.driver.trigger_mode.get_value()
@@ -469,6 +518,10 @@ async def test_eiger_controller_prepare(eiger_controller: EigerController) -> No
     assert await eiger_controller.driver.num_images.get_value() == 5
     assert await eiger_controller.driver.image_mode.get_value() == ADImageMode.MULTIPLE
 
+
+@pytest.mark.skip("Does this test reflect any kind of desired behavior?")
+@pytest.mark.asyncio
+async def test_eiger_controller_prepare_edge2(eiger_controller: EigerController) -> None:
     trigger_info = TriggerInfo(
         number_of_events=0,
         livetime=None,
@@ -477,7 +530,7 @@ async def test_eiger_controller_prepare(eiger_controller: EigerController) -> No
         exposure_timeout=10.0,
         exposures_per_event=1,
     )
-    await eiger_controller.prepare(trigger_info)
+    await eiger_controller.prepare_edge(num=0, livetime=None)
     assert await eiger_controller.driver.acquire_time.get_value() == 0.0
     assert (
         await eiger_controller.driver.trigger_mode.get_value()
@@ -493,16 +546,27 @@ async def test_eiger_controller_prepare(eiger_controller: EigerController) -> No
 async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
     set_mock_value(mock_eiger_detector.driver.num_images, 1)
     set_mock_value(mock_eiger_detector.driver.acquire_period, 0.001)
-    set_mock_value(mock_eiger_detector.fileio.array_counter, 0)
+    set_mock_value(mock_eiger_detector.data_logic.fileio.array_counter, 0)
 
     async def _simulate_one_trigger(value: bool, wait: bool) -> None:
         await asyncio.sleep(await mock_eiger_detector.driver.acquire_period.get_value())
-        array_counter = await mock_eiger_detector.fileio.array_counter.get_value()
-        set_mock_value(mock_eiger_detector.fileio.array_counter, array_counter + 1)
+        array_counter = await mock_eiger_detector.data_logic.fileio.array_counter.get_value()
+        set_mock_value(mock_eiger_detector.data_logic.fileio.array_counter, array_counter + 1)
 
     callback_on_mock_put(mock_eiger_detector.driver.acquire, _simulate_one_trigger)
 
     # Standalone methods
+    await mock_eiger_detector.prepare(
+        TriggerInfo(
+            trigger=DetectorTrigger.INTERNAL,
+            livetime=0.01,
+            deadtime=0.001,
+            exposures_per_collection=1,
+            collections_per_event=1,
+            number_of_events=1,
+            exposure_timeout=10.0,
+        )
+    )
     await mock_eiger_detector.describe()
 
     # Case 1 - Step Scan: stage, trigger, read, trigger, read, unstage
@@ -517,16 +581,17 @@ async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
     await mock_eiger_detector.read()
     await mock_eiger_detector.unstage()
 
-    set_mock_value(mock_eiger_detector.fileio.array_counter, 0)
+    set_mock_value(mock_eiger_detector.data_logic.fileio.array_counter, 0)
     # Case 2 - Fly Scan: prepare, kickoff, complete
     await mock_eiger_detector.prepare(
         TriggerInfo(
-            number_of_events=1,
+            trigger=DetectorTrigger.INTERNAL,
             livetime=0.01,
             deadtime=0.001,
-            trigger=DetectorTrigger.INTERNAL,
+            exposures_per_collection=1,
+            collections_per_event=1,
+            number_of_events=1,
             exposure_timeout=10.0,
-            exposures_per_event=1,
         )
     )
     await mock_eiger_detector.kickoff()

@@ -81,6 +81,7 @@ from ophyd_async.epics.core import stop_busy_record
 
 logger = getLogger(__name__)
 
+
 class EigerController(DetectorTriggerLogic):
     """Controller for Eiger detector, handling trigger modes and acquisition setup."""
 
@@ -102,7 +103,12 @@ class EigerController(DetectorTriggerLogic):
         return default_deadtime
 
     async def prepare_internal(self, num: int, livetime: float, deadtime: float):
-        """Prepare the detector for acquisition."""
+        """Prepare the detector for acquisition.
+
+        On Internal Series, num sets the number of images to take per trigger:
+        https://areadetector.github.io/areaDetector/ADEiger/eiger.html#implementation-of-standard-driver-parameters
+        """
+        # TODO - should we do something with deadtime?
 
         if livetime > 0:
             await self.driver.acquire_time.set(livetime)
@@ -114,7 +120,7 @@ class EigerController(DetectorTriggerLogic):
         else:
             image_mode = ADImageMode.MULTIPLE
 
-        # await self.driver.num_triggers.set(num)
+        await self.driver.num_images.set(num)
 
         await asyncio.gather(
             self.driver.image_mode.set(image_mode),
@@ -128,7 +134,9 @@ class EigerController(DetectorTriggerLogic):
         """
 
         await self.driver.acquire_time.set(livetime)
-        await self.driver.num_triggers.set(num)
+        # TODO is setting num_triggers right? or should it be num_images?
+        # await self.driver.num_triggers.set(num)
+        await self.driver.num_images.set(num)
         if num == 0:
             image_mode = ADImageMode.CONTINUOUS
         else:
@@ -293,6 +301,7 @@ class EigerArmLogic(DetectorArmLogic):
         self, driver: Eiger2DriverIO, driver_armed_signal: SignalR[bool] | None = None
     ):
         self.driver = driver
+        # TODO - remove? driver_armed_signal doesn't seem to be a thing anywhere else
         if driver_armed_signal is not None:
             self.driver_armed_signal = driver_armed_signal
         else:
@@ -306,7 +315,6 @@ class EigerArmLogic(DetectorArmLogic):
         return ret
 
     async def wait_for_idle(self):
-
         target_num_images, frame_acquire_period = await asyncio.gather(self.driver.num_images.get_value(),
                                                                        self.driver.acquire_period.get_value())
         frame_timeout = frame_acquire_period + DEFAULT_TIMEOUT
@@ -990,7 +998,7 @@ class EigerDetector(AreaDetector[Eiger2DriverIO]):
             plugins=plugins,
             arm_logic=arm_logic,
         )
-        # self.writer = None
+        self.data_logic = writer_logic
         self.add_detector_logics(writer_logic)
 
     # TODO remove this as it should be identical to upstream.

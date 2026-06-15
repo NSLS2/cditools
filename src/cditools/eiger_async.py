@@ -302,13 +302,10 @@ class EigerController(DetectorTriggerLogic):
 
     async def prepare_internal(self, num: int, livetime: float, deadtime: float):
         """Prepare the detector for acquisition.
-
-        On Internal Series, num sets the number of images to take per trigger:
         https://areadetector.github.io/areaDetector/ADEiger/eiger.html#implementation-of-standard-driver-parameters
         """
         # TODO - should we do something with deadtime?
         # TODO - put other awaits into the gather
-
         if livetime > 0:
             await self.driver.acquire_time.set(livetime)
 
@@ -319,8 +316,11 @@ class EigerController(DetectorTriggerLogic):
         else:
             image_mode = ADImageMode.MULTIPLE
 
+        # TODO - should we set num_images here?
+        # num_triggers gets overwritten in .prepare_unbounded(), which gets called further
+        # alone in .prepare()
+        # await self.driver.num_triggers.set(num),
         await asyncio.gather(
-            self.driver.num_triggers.set(num),
             self.driver.image_mode.set(image_mode),
         )
 
@@ -368,7 +368,7 @@ class EigerDataLogic(DetectorDataLogic):
         self._datasets: list[StreamResourceDataProvider] = []
         self._master_file_path_cache: list[Path] = []
 
-    async def prepare_unbounded(self, datakey_name: str) -> StreamableDataProvider:
+    async def prepare_unbounded(self, datakey_name: str) -> StreamResourceDataProvider:
         """Provider can work for an unbounded number of collections."""
         # Get file path info from path provider
         # TODO: should probably just pass datakey_name
@@ -391,6 +391,7 @@ class EigerDataLogic(DetectorDataLogic):
             self.fileio.manual_trigger.set(True),
             # TODO sort out how to get this from the plan
             self.fileio.num_triggers.set(5000),
+            self.fileio.data_source.set(EigerDataSource.FILE_WRITER)
         )
 
         await set_and_wait_for_other_value(
@@ -429,6 +430,7 @@ class EigerDataLogic(DetectorDataLogic):
 
         mfp = await self._master_file_path
         # TODO sort out how to get from parent
+        # TODO - should this be the datakey_name that gets passed in?
         name = "eiger"
         exposures_per_event = await self.fileio.num_images.get_value()
 
@@ -445,7 +447,7 @@ class EigerDataLogic(DetectorDataLogic):
                     parameters={
                         "dataset": f"entry/data/data_{1:06d}",
                     },
-                    # TODO put in better value
+                    # TODO put in better value; should it match EigerDataSource.FILE_WRITER?
                     source="EIGER2_FILE_WRITER",
                 )
             ],

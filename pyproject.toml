@@ -31,7 +31,7 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
   "ophyd",
-  "ophyd-async >=0.10.0a4",
+  "ophyd-async[ca] >=0.17a2",
   "h5py",
 ]
 

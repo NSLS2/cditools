@@ -16,7 +16,6 @@ import pytest
 import pytest_asyncio
 from bluesky.callbacks.tiled_writer import TiledWriter
 from bluesky.run_engine import RunEngine
-from event_model import StreamDatum, StreamResource
 from ophyd_async.core import (
     DetectorTrigger,
     PathProvider,
@@ -365,21 +364,6 @@ async def test_eiger_writer_collect_stream_docs(
 ) -> None:
     """Test collecting stream documents."""
 
-    # async def collect_docs(
-    #     num_triggers: int,
-    # ) -> tuple[list[StreamResource], list[StreamDatum]]:
-    #     for i in range(1, num_triggers + 1):
-    #         sequence_id = await mock_eiger_driver.sequence_id.get_value()
-    #         set_mock_value(mock_eiger_driver.sequence_id, sequence_id + 1)
-    #         async for doc_type, doc in eiger_writer.collect_stream_docs(
-    #             name="", indices_written=i
-    #         ):
-    #             if doc_type == "stream_resource":
-    #                 resource_docs.append(doc)
-    #             elif doc_type == "stream_datum":
-    #                 data_docs.append(doc)
-    #     return resource_docs, data_docs
-
     set_mock_value(mock_eiger_driver.sequence_id, 0)
     set_mock_value(mock_eiger_driver.num_images, 1)
 
@@ -412,13 +396,10 @@ async def test_eiger_writer_collect_stream_docs(
         set_mock_value(mock_eiger_driver.sequence_id, i + 1)
         set_mock_value(mock_eiger_driver.array_counter, i)
         async for doc_type, doc in provider2.make_stream_docs(i, i):
-            print(doc_type, doc)
             if doc_type == "stream_resource":
                 resource_docs.append(doc)
             elif doc_type == "stream_datum":
-                print('appending')
                 data_docs.append(doc)
-    print(await provider2.collections_written_signal.get_value())
     assert len(resource_docs) == 1
     assert len(data_docs) == 1
     assert await provider2.collections_written_signal.get_value() == 3
@@ -612,8 +593,6 @@ async def test_eiger_detector_with_RE(
             set_mock_value(mock_eiger_detector.driver.num_images_counter, num_images_counter + num_images)
 
             array_counter = await mock_eiger_detector.data_logic.fileio.array_counter.get_value()
-            print(array_counter)
-            print(num_images)
             set_mock_value(
                 mock_eiger_detector.data_logic.fileio.array_counter, array_counter + num_images
             )

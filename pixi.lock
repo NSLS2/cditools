@@ -56,7 +56,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/19/49/4df9123aafa7b539317bf6d342cb6d227e49f7a35b99c287a6109b13dd93/numpy-2.2.6-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/bb/ee/6b08dde0a022c463b88f55ae81149584b125a42183407dc1045c486cc870/opentelemetry_api-1.36.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/fa/b3/1e63820f1a4df7854e33f0c3c5fa6be758c7fb7ea007ae9c8b9b35f48690/ophyd-1.10.7-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/7f/a3/b4605ee05a6a3480ad57cf0ac15e381f99189b022362f0c08044c86227d7/ophyd_async-0.19.1-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/34/6a/68cf0ccf958ddae11d6da56905cd71c5c8101a581abb67f8c7574b95823f/ophyd_async-0.17a2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/76/cc/c528311d798e22ec884b816e8aa2989e0f1f28cdc8e5969e2be5f10bce85/pint-0.25-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/40/4b/2028861e724d3bd36227adfa20d3fd24c3fc6d52032f4a93c133be5d17ce/platformdirs-4.4.0-py3-none-any.whl
@@ -216,7 +216,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/c0/da/977ded879c29cbd04de313843e76868e6e13408a94ed6b987245dc7c8506/openpyxl-3.1.5-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/bb/ee/6b08dde0a022c463b88f55ae81149584b125a42183407dc1045c486cc870/opentelemetry_api-1.36.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/fa/b3/1e63820f1a4df7854e33f0c3c5fa6be758c7fb7ea007ae9c8b9b35f48690/ophyd-1.10.7-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/7f/a3/b4605ee05a6a3480ad57cf0ac15e381f99189b022362f0c08044c86227d7/ophyd_async-0.19.1-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/34/6a/68cf0ccf958ddae11d6da56905cd71c5c8101a581abb67f8c7574b95823f/ophyd_async-0.17a2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/d0/b4/f98355eff0bd1a38454209bbc73372ce351ba29933cb3e2eba16c04b9448/orjson-3.11.3-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/8f/52/0634adaace9be2d8cac9ef78f05c47f3a675882e068438b9d7ec7ef0c13f/pandas-2.3.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
@@ -373,7 +373,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/19/49/4df9123aafa7b539317bf6d342cb6d227e49f7a35b99c287a6109b13dd93/numpy-2.2.6-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/bb/ee/6b08dde0a022c463b88f55ae81149584b125a42183407dc1045c486cc870/opentelemetry_api-1.36.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/fa/b3/1e63820f1a4df7854e33f0c3c5fa6be758c7fb7ea007ae9c8b9b35f48690/ophyd-1.10.7-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/7f/a3/b4605ee05a6a3480ad57cf0ac15e381f99189b022362f0c08044c86227d7/ophyd_async-0.19.1-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/34/6a/68cf0ccf958ddae11d6da56905cd71c5c8101a581abb67f8c7574b95823f/ophyd_async-0.17a2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/76/cc/c528311d798e22ec884b816e8aa2989e0f1f28cdc8e5969e2be5f10bce85/pint-0.25-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/40/4b/2028861e724d3bd36227adfa20d3fd24c3fc6d52032f4a93c133be5d17ce/platformdirs-4.4.0-py3-none-any.whl
@@ -510,7 +510,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/19/49/4df9123aafa7b539317bf6d342cb6d227e49f7a35b99c287a6109b13dd93/numpy-2.2.6-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/bb/ee/6b08dde0a022c463b88f55ae81149584b125a42183407dc1045c486cc870/opentelemetry_api-1.36.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/fa/b3/1e63820f1a4df7854e33f0c3c5fa6be758c7fb7ea007ae9c8b9b35f48690/ophyd-1.10.7-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/7f/a3/b4605ee05a6a3480ad57cf0ac15e381f99189b022362f0c08044c86227d7/ophyd_async-0.19.1-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/34/6a/68cf0ccf958ddae11d6da56905cd71c5c8101a581abb67f8c7574b95823f/ophyd_async-0.17a2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/d0/b4/f98355eff0bd1a38454209bbc73372ce351ba29933cb3e2eba16c04b9448/orjson-3.11.3-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/71/e7/40fb618334dcdf7c5a316c0e7343c5cd82d3d866edc100d98e29bc945ecd/partd-1.4.2-py3-none-any.whl
@@ -1045,11 +1045,11 @@ packages:
   requires_python: '>=3.8'
 - pypi: ./
   name: cditools
-  version: 0.1.1.dev75+gb634deca4.d20260615
-  sha256: 329fa3eedf2260d6e30b16a594d6308e9e9a7e3d3922a23b0b7524c2d0034046
+  version: 0.1.1.dev77+gbd96ebd3c.d20260617
+  sha256: 5581ab46c321a090c4331aa21510018a9ba1f1ec373bb6bc0d01b7df4f6c52a1
   requires_dist:
   - ophyd
-  - ophyd-async[ca]>=0.17a2
+  - ophyd-async[ca]==0.17a2
   - h5py
   - entrypoints ; extra == 'test'
   - pytest>=6 ; extra == 'test'
@@ -2401,10 +2401,10 @@ packages:
   - sphinx-design ; extra == 'dev'
   - tox-direct ; extra == 'dev'
   requires_python: '>=3.8'
-- pypi: https://files.pythonhosted.org/packages/7f/a3/b4605ee05a6a3480ad57cf0ac15e381f99189b022362f0c08044c86227d7/ophyd_async-0.19.1-py3-none-any.whl
+- pypi: https://files.pythonhosted.org/packages/34/6a/68cf0ccf958ddae11d6da56905cd71c5c8101a581abb67f8c7574b95823f/ophyd_async-0.17a2-py3-none-any.whl
   name: ophyd-async
-  version: 0.19.1
-  sha256: bb4cc6751aee46e53c588b493ce0a8905c94fbf4b5092af2f774019846af7c74
+  version: 0.17a2
+  sha256: 9e7e05d8fbd34ddc9fb907cbcab1b9fbd54fa9aa2d4a26615302d3841200ffeb
   requires_dist:
   - numpy
   - bluesky>=1.13.1rc2

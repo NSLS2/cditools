@@ -260,13 +260,9 @@ class Eiger2DriverIO(EigerDriverIO):
     hv_state: A[SignalR[str], PvSuffix("HVState_RBV")]
 
     # Acquisition Setup
-    # TODO - ThresholdEnergy or Threshold?
-    # threshold: A[SignalRW[float], PvSuffix.rbv("ThresholdEnergy")]
-    threshold: A[SignalRW[float], PvSuffix.rbv("Threshold")]
+    threshold: A[SignalRW[float], PvSuffix.rbv("ThresholdEnergy")]
     threshold1_enable: A[SignalRW[bool], PvSuffix.rbv("Threshold1Enable")]
-    # TODO - Threshold2Energy or Threshold?
-    # threshold2: A[SignalRW[float], PvSuffix.rbv("Threshold2Energy")]
-    threshold2: A[SignalRW[float], PvSuffix.rbv("Threshold2")]
+    threshold2: A[SignalRW[float], PvSuffix.rbv("Threshold2Energy")]
     threshold2_enable: A[SignalRW[bool], PvSuffix.rbv("Threshold2Enable")]
     threshold_diff_enable: A[SignalRW[bool], PvSuffix.rbv("ThresholdDiffEnable")]
     counting_mode: A[SignalRW[str], PvSuffix.rbv("CountingMode")]
@@ -280,11 +276,8 @@ class Eiger2DriverIO(EigerDriverIO):
 
     # Stream Interface
     stream_version: A[SignalRW[EigerStreamVersion], PvSuffix.rbv("StreamVersion")]
-    # TODO - which one?
-    # stream_hdr_appendix: None
-    stream_hdr_appendix: A[SignalRW[str], PvSuffix.rbv("StreamHdrAppendix")]
-    # stream_img_appendix: None
-    stream_img_appendix: A[SignalRW[str], PvSuffix.rbv("StreamImgAppendix")]
+    stream_hdr_appendix: None
+    stream_img_appendix: None
 
     # FileWriter Interface
     fw_hdf5_format: A[SignalRW[EigerHDF5Format], PvSuffix.rbv("FWHDF5Format")]

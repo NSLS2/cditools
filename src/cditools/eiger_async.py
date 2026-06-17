@@ -123,9 +123,7 @@ class EigerStreamVersion(StrictEnum):
     See https://areadetector.github.io/areaDetector/ADEiger/eiger.html#stream-interface
     """
 
-    # TODO - Stream or Stream1?
-    # STREAM1 = "Stream"
-    STREAM1 = "Stream1"
+    STREAM1 = "Stream"
     STREAM2 = "Stream2"
 
 

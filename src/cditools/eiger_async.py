@@ -391,7 +391,7 @@ class EigerDataLogic(DetectorDataLogic):
             self.fileio.manual_trigger.set(True),
             # TODO sort out how to get this from the plan
             self.fileio.num_triggers.set(5000),
-            self.fileio.data_source.set(EigerDataSource.FILE_WRITER)
+            self.fileio.data_source.set(EigerDataSource.STREAM)
         )
 
         await set_and_wait_for_other_value(

@@ -118,7 +118,7 @@ class Attenuator(EpicsDevice, AsyncMovable[AttenuatorStatusEnum]):
         if egu == "KeV":
             photon_energy = photon_energy * 1e3
         elif egu != "eV":
-            msg = "Photon energy units must be eV or KeV"
+            msg = f"Photon energy units must be eV or KeV (not {egu=})"
             raise RuntimeError(msg)
         return self.filter_material.absorption_length(photon_energy)  # type: ignore[reportArgumentType]
 

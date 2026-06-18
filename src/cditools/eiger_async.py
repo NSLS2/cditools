@@ -10,6 +10,7 @@ from collections.abc import AsyncGenerator, AsyncIterator, Sequence
 from urllib.parse import urlunparse
 from pathlib import Path
 from logging import getLogger
+
 from typing import Annotated as A
 import numpy as np
 
@@ -390,7 +391,7 @@ class EigerDataLogic(DetectorDataLogic):
             self.fileio.manual_trigger.set(True),
             # TODO sort out how to get this from the plan
             self.fileio.num_triggers.set(5000),
-            self.fileio.data_source.set(EigerDataSource.STREAM)
+            self.fileio.data_source.set(EigerDataSource.STREAM),
         )
 
         await set_and_wait_for_other_value(
@@ -509,12 +510,17 @@ class EigerArmLogic(DetectorArmLogic):
         return ret
 
     async def wait_for_idle(self):
-        target_num_images, frame_acquire_period = await asyncio.gather(self.driver.num_images.get_value(),
-                                                                       self.driver.acquire_period.get_value())
+        target_num_images, frame_acquire_period = await asyncio.gather(
+            self.driver.num_images.get_value(), self.driver.acquire_period.get_value()
+        )
         frame_timeout = frame_acquire_period + DEFAULT_TIMEOUT
         done_timeout = frame_timeout * target_num_images
         target_num_images += self._rolling_image_counter
-        async for images_complete in observe_value(self.driver.num_images_counter, timeout=frame_timeout, done_timeout=done_timeout):
+        async for images_complete in observe_value(
+            self.driver.num_images_counter,
+            timeout=frame_timeout,
+            done_timeout=done_timeout,
+        ):
             if images_complete == target_num_images:
                 break
 

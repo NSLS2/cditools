@@ -181,9 +181,6 @@ class TestAttenuatorBank:
 
         status = await second_bank.read()
         assert status == {
-            "photon_energy": 12,
-            "egu": "KeV",
-            "total_transmission": pytest.approx(0.699),
             "attenuator_1": {"active": False, "transmission": 0},
             "attenuator_2": {
                 "active": True,
@@ -194,6 +191,47 @@ class TestAttenuatorBank:
                 "transmission": pytest.approx(0.769, rel=0.001),
             },
             "attenuator_4": {"active": False, "transmission": 0},
+            "photon_energy": 12,
+            "egu": "KeV",
+            "total_transmission": pytest.approx(0.699),
+        }
+
+    @pytest.mark.asyncio
+    async def test_describe(self, mock_attenuator_bank: AttenuatorBank):
+        description = await mock_attenuator_bank.describe()
+
+        expected_keys = {
+            "attenuator_1",
+            "attenuator_2",
+            "attenuator_3",
+            "attenuator_4",
+            "photon_energy",
+            "egu",
+            "total_transmission",
+        }
+        assert set(description.keys()) == expected_keys
+
+        for i in range(1, 5):
+            assert description[f"attenuator_{i}"] == {
+                "source": mock_attenuator_bank.attenuators[i].position.source,
+                "dtype": "string",
+                "shape": [],
+            }
+
+        assert description["photon_energy"] == {
+            "source": mock_attenuator_bank.energy.energy.readback.source,
+            "dtype": "number",
+            "shape": [],
+        }
+        assert description["egu"] == {
+            "source": f"ca://{mock_attenuator_bank.prefix}:egu",
+            "dtype": "string",
+            "shape": [],
+        }
+        assert description["total_transmission"] == {
+            "source": f"ca://{mock_attenuator_bank.prefix}:total_transmission",
+            "dtype": "number",
+            "shape": [],
         }
 
     def test_find_closest_attenuation(self, mock_attenuator_bank: AttenuatorBank):

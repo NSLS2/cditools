@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import math
+from collections import OrderedDict
 from dataclasses import dataclass
 
 import numpy as np
 import xrayutilities as xu
+from event_model import DataKey  # type: ignore[import-untyped]
 from ophyd_async.core import (
     AsyncMovable,
     AsyncStatus,
@@ -155,7 +157,7 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
         returns that energy, each filter position, each transmission, and
         the total transmission.
         """
-        status = {}
+        status = OrderedDict()
         active_attens = []
         energy = self.get_photon_energy()
         egu = self.get_egu()
@@ -175,6 +177,40 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
             energy, *active_attens
         )
         return status
+
+    async def describe(self) -> OrderedDict[str, DataKey]:
+        """Describe the structure of values returned by read()."""
+
+        description = OrderedDict()
+
+        for atten in self.attenuators.values():
+            description[atten.name] = DataKey(
+                source=atten.position.source,
+                dtype="string",
+                shape=[],
+            )
+        energy_source = getattr(
+            self.energy.energy.readback,
+            "source",
+            f"ca://{self.prefix}:photon_energy",
+        )
+        description["photon_energy"] = DataKey(
+            source=energy_source,
+            dtype="number",
+            shape=[],
+        )
+        description["egu"] = DataKey(
+            source=f"ca://{self.prefix}:egu",
+            dtype="string",
+            shape=[],
+        )
+        description["total_transmission"] = DataKey(
+            source=f"ca://{self.prefix}:total_transmission",
+            dtype="number",
+            shape=[],
+        )
+
+        return description
 
     @AsyncStatus.wrap
     async def set(self, value: float):

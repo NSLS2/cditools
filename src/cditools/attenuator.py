@@ -169,7 +169,6 @@ class AttenuatorBank(StandardReadable, EpicsDevice, AsyncMovable[float]):
                 active_attens.append(atten)
             transmission = atten.transmission(energy, egu) if is_active else 0
             status[atten.name] = {"active": is_active, "transmission": transmission}
-        status["active_attenuators"] = [a.num for a in active_attens]
         status["photon_energy"] = energy
         status["egu"] = egu
         status["total_transmission"] = self._calculate_total_transmission(

@@ -159,7 +159,6 @@ class TestAttenuatorBank:
         mock_attenuator_bank.set(1)
         status = await mock_attenuator_bank.read()
         assert status == {
-            "active_attenuators": [],
             "photon_energy": 8.6,
             "egu": "KeV",
             "total_transmission": 1,
@@ -182,7 +181,6 @@ class TestAttenuatorBank:
 
         status = await second_bank.read()
         assert status == {
-            "active_attenuators": [2, 3],
             "photon_energy": 12,
             "egu": "KeV",
             "total_transmission": pytest.approx(0.699),

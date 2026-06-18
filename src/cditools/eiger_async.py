@@ -40,7 +40,6 @@ from ophyd_async.core import (
     observe_value,
     set_and_wait_for_other_value,
 )
-from ophyd_async.core._data_providers import StreamableDataProvider
 from ophyd_async.core._status import WatchableAsyncStatus
 from ophyd_async.core._utils import (
     DEFAULT_TIMEOUT,

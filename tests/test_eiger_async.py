@@ -204,7 +204,7 @@ async def test_eiger_data_logic_prepare_unbounded(
     assert await mock_eiger_driver.save_files.get_value() is True
     # TODO data_key should probably match datakey_name actually
     assert streamDataProv.resources[0].data_key == "eiger_image"
-    assert streamDataProv.resources[0].source == "EIGER2_FILE_WRITER"
+    assert streamDataProv.resources[0].source == "STREAM"
 
     # Case 2: 4 images per file, 11 images, 2 triggers
     # Expect 6 files, the first 5 will have 4 images, the last will have 2
@@ -215,7 +215,7 @@ async def test_eiger_data_logic_prepare_unbounded(
     assert streamResourceProv.data_key == "eiger_image"
     assert streamResourceProv.shape == (11, array_size_x, array_size_y)
     assert streamResourceProv.dtype_numpy == np.dtype(np.uint32).str
-    assert streamResourceProv.source == "EIGER2_FILE_WRITER"
+    assert streamResourceProv.source == "STREAM"
 
 
 @pytest.mark.asyncio

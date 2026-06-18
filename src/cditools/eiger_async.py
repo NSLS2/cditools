@@ -448,7 +448,7 @@ class EigerDataLogic(DetectorDataLogic):
                         "dataset": f"entry/data/data_{1:06d}",
                     },
                     # TODO put in better value; should it match EigerDataSource.FILE_WRITER?
-                    source="EIGER2_FILE_WRITER",
+                    source=EigerDataSource.STREAM,
                 )
             ],
             mimetype="application/x-hdf5",

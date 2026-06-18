@@ -7,7 +7,6 @@ from ophyd import (
     Device,
     EpicsMotor,
     EpicsSignal,
-    ImagePlugin,
     ProsilicaDetector,
     ProsilicaDetectorCam,
     ROIPlugin,

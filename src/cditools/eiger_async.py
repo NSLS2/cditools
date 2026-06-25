@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import asyncio
 import functools
-import os
 from collections.abc import AsyncGenerator, AsyncIterator, Sequence
 from logging import getLogger
 from pathlib import Path
@@ -443,7 +442,7 @@ class EigerDataLogic(DetectorDataLogic):
                     parameters={
                         "dataset": f"entry/data/data_{1:06d}",
                     },
-                    source='eiger',
+                    source="eiger",
                 )
             ],
             mimetype="application/x-hdf5",

@@ -7,8 +7,8 @@ from __future__ import annotations
 import asyncio
 import shutil
 from collections.abc import AsyncGenerator, Generator
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 
 import bluesky.plans as bp
 import h5py
@@ -128,13 +128,11 @@ def mock_eiger_driver(RE: RunEngine) -> EigerDriverIO:
     with init_devices(mock=True):
         driver = EigerDriverIO("MOCK:EIGER:cam1:")
 
-
-
     @dataclass
     class Parent:
-        name : str
+        name: str
 
-    driver.parent = Parent('eiger2-1')
+    driver.parent = Parent("eiger2-1")
 
     # Set up some default mock values
     set_mock_value(driver.file_path_exists, True)
@@ -208,7 +206,9 @@ async def test_eiger_data_logic_prepare_unbounded(
     set_mock_value(mock_eiger_driver.sequence_id, 0)
     set_mock_value(mock_eiger_driver.num_images, 1)
 
-    streamDataProv = await eiger_writer.prepare_unbounded(datakey_name="test_eiger_image")
+    streamDataProv = await eiger_writer.prepare_unbounded(
+        datakey_name="test_eiger_image"
+    )
     assert await mock_eiger_driver.fw_enable.get_value() is True
     assert await mock_eiger_driver.save_files.get_value() is True
     # TODO data_key should probably match datakey_name actually
@@ -219,7 +219,9 @@ async def test_eiger_data_logic_prepare_unbounded(
     # Expect 6 files, the first 5 will have 4 images, the last will have 2
     set_mock_value(mock_eiger_driver.sequence_id, 1)
     set_mock_value(mock_eiger_driver.num_images, 11)
-    streamDataProv = await eiger_writer.prepare_unbounded(datakey_name="test_eiger_image")
+    streamDataProv = await eiger_writer.prepare_unbounded(
+        datakey_name="test_eiger_image"
+    )
     streamResourceProv = streamDataProv.resources[0]
     assert streamResourceProv.data_key == "test_eiger_image"
     assert streamResourceProv.shape == (11, array_size_x, array_size_y)

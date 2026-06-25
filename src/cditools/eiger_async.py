@@ -3,31 +3,18 @@ Ophyd Async implementation for Eiger detector.
 """
 
 from __future__ import annotations
+
 import asyncio
 import functools
 import os
 from collections.abc import AsyncGenerator, AsyncIterator, Sequence
-from urllib.parse import urlunparse
-from pathlib import Path
 from logging import getLogger
-
+from pathlib import Path
 from typing import Annotated as A
-import numpy as np
+from urllib.parse import urlunparse
 
-from ophyd_async.epics.adcore import (
-    ADBaseIO,
-    NDFileIO,
-    ADImageMode,
-    AreaDetector,
-    NDPluginBaseIO,
-    trigger_info_from_num_images,
-)
-from ophyd_async.epics.core import PvSuffix, stop_busy_record
+import numpy as np
 from ophyd_async.core import (
-    SignalR,
-    SignalRW,
-    StrictEnum,
-    SubsetEnum,
     AsyncStatus,
     DetectorArmLogic,
     DetectorDataLogic,
@@ -35,8 +22,12 @@ from ophyd_async.core import (
     PathInfo,
     PathProvider,
     SignalDatatypeT,
+    SignalR,
+    SignalRW,
     StreamResourceDataProvider,
     StreamResourceInfo,
+    StrictEnum,
+    SubsetEnum,
     TriggerInfo,
     observe_value,
     set_and_wait_for_other_value,
@@ -47,6 +38,15 @@ from ophyd_async.core._utils import (
     WatcherUpdate,
     error_if_none,
 )
+from ophyd_async.epics.adcore import (
+    ADBaseIO,
+    ADImageMode,
+    AreaDetector,
+    NDFileIO,
+    NDPluginBaseIO,
+    trigger_info_from_num_images,
+)
+from ophyd_async.epics.core import PvSuffix, stop_busy_record
 
 logger = getLogger(__name__)
 
@@ -300,7 +300,7 @@ class EigerController(DetectorTriggerLogic):
             )
         return default_deadtime
 
-    async def prepare_internal(self, num: int, livetime: float, deadtime: float):
+    async def prepare_internal(self, num: int, livetime: float, deadtime: float):  # noqa: ARG002
         """Prepare the detector for acquisition.
         https://areadetector.github.io/areaDetector/ADEiger/eiger.html#implementation-of-standard-driver-parameters
         """
@@ -371,8 +371,7 @@ class EigerDataLogic(DetectorDataLogic):
     async def prepare_unbounded(self, datakey_name: str) -> StreamResourceDataProvider:
         """Provider can work for an unbounded number of collections."""
         # Get file path info from path provider
-        # TODO: should probably just pass datakey_name
-        self._file_info = self._path_provider("eiger2-1")
+        self._file_info = self._path_provider(datakey_name)
         self._master_file_path_cache.clear()
 
         # Set the name pattern with $id replacement similar to original

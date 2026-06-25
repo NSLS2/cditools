@@ -429,7 +429,6 @@ class EigerDataLogic(DetectorDataLogic):
         shape = [x for x in shape if x > 0]
 
         mfp = await self._master_file_path
-        exposures_per_event = await self.fileio.num_images.get_value()
 
         # TODO sort out how to tell tiled about the additional data files.
         return StreamResourceDataProvider(
@@ -437,7 +436,7 @@ class EigerDataLogic(DetectorDataLogic):
             resources=[
                 StreamResourceInfo(
                     data_key=datakey_name,
-                    shape=(exposures_per_event, *shape),
+                    shape=shape,
                     # TODO sort out how to set this and mirror here
                     chunk_shape=(1, *shape),
                     dtype_numpy=np.dtype(datatype.lower()).str,

@@ -16,7 +16,7 @@ from urllib.parse import urlunparse
 import numpy as np
 from ophyd_async.core import (
     AsyncStatus,
-    DetectorArmLogic,
+    DetectorAcquireLogic,
     DetectorDataLogic,
     DetectorTriggerLogic,
     PathInfo,
@@ -372,7 +372,7 @@ class EigerDataLogic(DetectorDataLogic):
     async def prepare_unbounded(self, datakey_name: str) -> StreamResourceDataProvider:
         """Provider can work for an unbounded number of collections."""
         # Get file path info from path provider
-        self._file_info = self._path_provider(self.fileio.parent.name)
+        self._file_info = self._path_provider(datakey_name)
         self._master_file_path_cache.clear()
 
         # Set the name pattern with $id replacement similar to original
@@ -487,7 +487,7 @@ class EigerDataLogic(DetectorDataLogic):
 
 
 # TODO sort out if ths is the right name of things
-class EigerArmLogic(DetectorArmLogic):
+class EigerAcquireLogic(DetectorAcquireLogic):
     def __init__(
         self, driver: Eiger2DriverIO, driver_armed_signal: SignalR[bool] | None = None
     ):
@@ -500,7 +500,7 @@ class EigerArmLogic(DetectorArmLogic):
         self.acquire_status: AsyncStatus | None = None
         self._rolling_image_counter = 0
 
-    async def arm(self):
+    async def start_acquiring(self):
         self._rolling_image_counter = await self.driver.num_images_counter.get_value()
         ret = await self.driver.trigger.set(1)
         return ret
@@ -520,7 +520,7 @@ class EigerArmLogic(DetectorArmLogic):
             if images_complete == target_num_images:
                 break
 
-    async def disarm(self):
+    async def ensure_stopped(self):
         self._rolling_image_counter = 0
         await stop_busy_record(self.driver.acquire)
 
@@ -544,16 +544,15 @@ class EigerDetector(AreaDetector[Eiger2DriverIO]):
     ):
         driver = Eiger2DriverIO(prefix + driver_suffix)
         controller = EigerController(driver)
-        arm_logic = EigerArmLogic(driver)
+        acquire_logic = EigerAcquireLogic(driver)
         super().__init__(
             prefix=prefix,
             driver=driver,
             trigger_logic=controller,
-            writer_type=None,
             name=name,
             config_sigs=config_sigs,
             plugins=plugins,
-            arm_logic=arm_logic,
+            acquire_logic=acquire_logic,
         )
         self.data_logic = EigerDataLogic(fileio=driver, path_provider=path_provider)
         self.add_detector_logics(self.data_logic)
@@ -618,8 +617,8 @@ class EigerDetector(AreaDetector[Eiger2DriverIO]):
             await self._update_prepare_context(trigger_info)
         ctx = error_if_none(self._prepare_ctx, "Prepare should have been run")
         # Arm the detector and wait for it to finish.
-        if self._arm_logic:
-            await self._arm_logic.arm()
+        if self._acquire_logic:
+            await self._acquire_logic.start_acquiring()
 
         async for update in self._wait_for_index(
             data_providers=ctx.streamable_data_providers,

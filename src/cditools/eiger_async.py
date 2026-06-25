@@ -372,7 +372,7 @@ class EigerDataLogic(DetectorDataLogic):
     async def prepare_unbounded(self, datakey_name: str) -> StreamResourceDataProvider:
         """Provider can work for an unbounded number of collections."""
         # Get file path info from path provider
-        self._file_info = self._path_provider(datakey_name)
+        self._file_info = self._path_provider(self.fileio.parent.name)
         self._master_file_path_cache.clear()
 
         # Set the name pattern with $id replacement similar to original
@@ -570,16 +570,8 @@ class EigerDetector(AreaDetector[Eiger2DriverIO]):
         used.
         """
         if self._prepare_ctx is None:
-            # Opt-in: set OPHYD_ASYNC_PRESERVE_DETECTOR_STATE=YES to have
-            # trigger() read back current hardware state (e.g. num_images) via
-            # default_trigger_info() instead of always falling back to TriggerInfo().
-            # See ADR 0013 for rationale.
-            # TODO: flip default to YES and remove this guard in a future PR once
-            # downstream code has had time to implement default_trigger_info().
-            preserve_state = (
-                os.environ.get("OPHYD_ASYNC_PRESERVE_DETECTOR_STATE", "NO").upper()
-                == "YES"
-            )
+            # We always want to preserve state on the eiger
+            preserve_state = True
             if preserve_state and self._trigger_logic is not None:
 
                 def _logic_supported(base_class, method) -> bool:

@@ -8,6 +8,7 @@ import asyncio
 import shutil
 from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
+from dataclasses import dataclass
 
 import bluesky.plans as bp
 import h5py
@@ -126,6 +127,14 @@ def mock_eiger_driver(RE: RunEngine) -> EigerDriverIO:
     """Create a mock EigerDriverIO for testing."""
     with init_devices(mock=True):
         driver = EigerDriverIO("MOCK:EIGER:cam1:")
+
+
+
+    @dataclass
+    class Parent:
+        name : str
+
+    driver.parent = Parent('eiger2-1')
 
     # Set up some default mock values
     set_mock_value(driver.file_path_exists, True)

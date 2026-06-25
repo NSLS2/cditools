@@ -3,39 +3,30 @@ Ophyd Async implementation for Eiger detector.
 """
 
 from __future__ import annotations
+
 import asyncio
 import functools
-import os
 from collections.abc import AsyncGenerator, AsyncIterator, Sequence
-from urllib.parse import urlunparse
-from pathlib import Path
 from logging import getLogger
+from pathlib import Path
 from typing import Annotated as A
-import numpy as np
+from urllib.parse import urlunparse
 
-from ophyd_async.epics.adcore import (
-    ADBaseIO,
-    NDFileIO,
-    ADImageMode,
-    AreaDetector,
-    NDPluginBaseIO,
-    trigger_info_from_num_images,
-)
-from ophyd_async.epics.core import PvSuffix, stop_busy_record
+import numpy as np
 from ophyd_async.core import (
-    SignalR,
-    SignalRW,
-    StrictEnum,
-    SubsetEnum,
     AsyncStatus,
-    DetectorArmLogic,
+    DetectorAcquireLogic,
     DetectorDataLogic,
     DetectorTriggerLogic,
     PathInfo,
     PathProvider,
     SignalDatatypeT,
+    SignalR,
+    SignalRW,
     StreamResourceDataProvider,
     StreamResourceInfo,
+    StrictEnum,
+    SubsetEnum,
     TriggerInfo,
     observe_value,
     set_and_wait_for_other_value,
@@ -46,6 +37,15 @@ from ophyd_async.core._utils import (
     WatcherUpdate,
     error_if_none,
 )
+from ophyd_async.epics.adcore import (
+    ADBaseIO,
+    ADImageMode,
+    AreaDetector,
+    NDFileIO,
+    NDPluginBaseIO,
+    trigger_info_from_num_images,
+)
+from ophyd_async.epics.core import PvSuffix, stop_busy_record
 
 logger = getLogger(__name__)
 
@@ -299,7 +299,7 @@ class EigerController(DetectorTriggerLogic):
             )
         return default_deadtime
 
-    async def prepare_internal(self, num: int, livetime: float, deadtime: float):
+    async def prepare_internal(self, num: int, livetime: float, deadtime: float):  # noqa: ARG002
         """Prepare the detector for acquisition.
         https://areadetector.github.io/areaDetector/ADEiger/eiger.html#implementation-of-standard-driver-parameters
         """
@@ -354,6 +354,7 @@ class EigerDataLogic(DetectorDataLogic):
     default_suffix: str = "cam1:"
     # Forced minimum number of images per file to force a single HDF5 file
     _min_num_images_per_file: int = 1_000_000_000
+    datakey_suffix: str = "_image"
 
     def __init__(
         self,
@@ -370,8 +371,7 @@ class EigerDataLogic(DetectorDataLogic):
     async def prepare_unbounded(self, datakey_name: str) -> StreamResourceDataProvider:
         """Provider can work for an unbounded number of collections."""
         # Get file path info from path provider
-        # TODO: should probably just pass datakey_name
-        self._file_info = self._path_provider("eiger2-1")
+        self._file_info = self._path_provider(self.fileio.parent.name)
         self._master_file_path_cache.clear()
 
         # Set the name pattern with $id replacement similar to original
@@ -390,7 +390,7 @@ class EigerDataLogic(DetectorDataLogic):
             self.fileio.manual_trigger.set(True),
             # TODO sort out how to get this from the plan
             self.fileio.num_triggers.set(5000),
-            self.fileio.data_source.set(EigerDataSource.STREAM)
+            self.fileio.data_source.set(EigerDataSource.STREAM),
         )
 
         await set_and_wait_for_other_value(
@@ -428,26 +428,21 @@ class EigerDataLogic(DetectorDataLogic):
         shape = [x for x in shape if x > 0]
 
         mfp = await self._master_file_path
-        # TODO sort out how to get from parent
-        # TODO - should this be the datakey_name that gets passed in?
-        name = "eiger"
-        exposures_per_event = await self.fileio.num_images.get_value()
 
         # TODO sort out how to tell tiled about the additional data files.
         return StreamResourceDataProvider(
             uri=urlunparse(("file", "localhost", str(mfp), "", "", None)),
             resources=[
                 StreamResourceInfo(
-                    data_key=f"{name}_image",
-                    shape=(exposures_per_event, *shape),
+                    data_key=datakey_name,
+                    shape=shape,
                     # TODO sort out how to set this and mirror here
                     chunk_shape=(1, *shape),
                     dtype_numpy=np.dtype(datatype.lower()).str,
                     parameters={
                         "dataset": f"entry/data/data_{1:06d}",
                     },
-                    # TODO put in better value; should it match EigerDataSource.FILE_WRITER?
-                    source=EigerDataSource.STREAM,
+                    source="eiger",
                 )
             ],
             mimetype="application/x-hdf5",
@@ -490,7 +485,7 @@ class EigerDataLogic(DetectorDataLogic):
 
 
 # TODO sort out if ths is the right name of things
-class EigerArmLogic(DetectorArmLogic):
+class EigerAcquireLogic(DetectorAcquireLogic):
     def __init__(
         self, driver: Eiger2DriverIO, driver_armed_signal: SignalR[bool] | None = None
     ):
@@ -503,22 +498,27 @@ class EigerArmLogic(DetectorArmLogic):
         self.acquire_status: AsyncStatus | None = None
         self._rolling_image_counter = 0
 
-    async def arm(self):
+    async def start_acquiring(self):
         self._rolling_image_counter = await self.driver.num_images_counter.get_value()
         ret = await self.driver.trigger.set(1)
         return ret
 
     async def wait_for_idle(self):
-        target_num_images, frame_acquire_period = await asyncio.gather(self.driver.num_images.get_value(),
-                                                                       self.driver.acquire_period.get_value())
+        target_num_images, frame_acquire_period = await asyncio.gather(
+            self.driver.num_images.get_value(), self.driver.acquire_period.get_value()
+        )
         frame_timeout = frame_acquire_period + DEFAULT_TIMEOUT
         done_timeout = frame_timeout * target_num_images
         target_num_images += self._rolling_image_counter
-        async for images_complete in observe_value(self.driver.num_images_counter, timeout=frame_timeout, done_timeout=done_timeout):
+        async for images_complete in observe_value(
+            self.driver.num_images_counter,
+            timeout=frame_timeout,
+            done_timeout=done_timeout,
+        ):
             if images_complete == target_num_images:
                 break
 
-    async def disarm(self):
+    async def ensure_stopped(self):
         self._rolling_image_counter = 0
         await stop_busy_record(self.driver.acquire)
 
@@ -542,16 +542,15 @@ class EigerDetector(AreaDetector[Eiger2DriverIO]):
     ):
         driver = Eiger2DriverIO(prefix + driver_suffix)
         controller = EigerController(driver)
-        arm_logic = EigerArmLogic(driver)
+        acquire_logic = EigerAcquireLogic(driver)
         super().__init__(
             prefix=prefix,
             driver=driver,
             trigger_logic=controller,
-            writer_type=None,
             name=name,
             config_sigs=config_sigs,
             plugins=plugins,
-            arm_logic=arm_logic,
+            acquire_logic=acquire_logic,
         )
         self.data_logic = EigerDataLogic(fileio=driver, path_provider=path_provider)
         self.add_detector_logics(self.data_logic)
@@ -569,16 +568,8 @@ class EigerDetector(AreaDetector[Eiger2DriverIO]):
         used.
         """
         if self._prepare_ctx is None:
-            # Opt-in: set OPHYD_ASYNC_PRESERVE_DETECTOR_STATE=YES to have
-            # trigger() read back current hardware state (e.g. num_images) via
-            # default_trigger_info() instead of always falling back to TriggerInfo().
-            # See ADR 0013 for rationale.
-            # TODO: flip default to YES and remove this guard in a future PR once
-            # downstream code has had time to implement default_trigger_info().
-            preserve_state = (
-                os.environ.get("OPHYD_ASYNC_PRESERVE_DETECTOR_STATE", "NO").upper()
-                == "YES"
-            )
+            # We always want to preserve state on the eiger
+            preserve_state = True
             if preserve_state and self._trigger_logic is not None:
 
                 def _logic_supported(base_class, method) -> bool:
@@ -616,8 +607,8 @@ class EigerDetector(AreaDetector[Eiger2DriverIO]):
             await self._update_prepare_context(trigger_info)
         ctx = error_if_none(self._prepare_ctx, "Prepare should have been run")
         # Arm the detector and wait for it to finish.
-        if self._arm_logic:
-            await self._arm_logic.arm()
+        if self._acquire_logic:
+            await self._acquire_logic.start_acquiring()
 
         async for update in self._wait_for_index(
             data_providers=ctx.streamable_data_providers,

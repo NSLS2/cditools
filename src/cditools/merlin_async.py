@@ -46,6 +46,7 @@ class MerlinTriggerMode(StrictEnum):
     TRIGGER_BOTH_RISING = "Trigger both rising"
     SOFTWARE = "Software"
 
+
 class MerlinTriggerModeRBV(StrictEnum):
     """Trigger modes for the Merlin detector"""
 

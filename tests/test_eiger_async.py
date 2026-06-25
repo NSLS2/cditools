@@ -199,23 +199,23 @@ async def test_eiger_data_logic_prepare_unbounded(
     set_mock_value(mock_eiger_driver.sequence_id, 0)
     set_mock_value(mock_eiger_driver.num_images, 1)
 
-    streamDataProv = await eiger_writer.prepare_unbounded(datakey_name="test_eiger")
+    streamDataProv = await eiger_writer.prepare_unbounded(datakey_name="test_eiger_image")
     assert await mock_eiger_driver.fw_enable.get_value() is True
     assert await mock_eiger_driver.save_files.get_value() is True
     # TODO data_key should probably match datakey_name actually
-    assert streamDataProv.resources[0].data_key == "eiger_image"
-    assert streamDataProv.resources[0].source == "STREAM"
+    assert streamDataProv.resources[0].data_key == "test_eiger_image"
+    assert streamDataProv.resources[0].source == "eiger"
 
     # Case 2: 4 images per file, 11 images, 2 triggers
     # Expect 6 files, the first 5 will have 4 images, the last will have 2
     set_mock_value(mock_eiger_driver.sequence_id, 1)
     set_mock_value(mock_eiger_driver.num_images, 11)
-    streamDataProv = await eiger_writer.prepare_unbounded(datakey_name="test_eiger")
+    streamDataProv = await eiger_writer.prepare_unbounded(datakey_name="test_eiger_image")
     streamResourceProv = streamDataProv.resources[0]
-    assert streamResourceProv.data_key == "eiger_image"
+    assert streamResourceProv.data_key == "test_eiger_image"
     assert streamResourceProv.shape == (11, array_size_x, array_size_y)
     assert streamResourceProv.dtype_numpy == np.dtype(np.uint32).str
-    assert streamResourceProv.source == "STREAM"
+    assert streamResourceProv.source == "eiger"
 
 
 @pytest.mark.asyncio
@@ -553,11 +553,11 @@ async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
     await mock_eiger_detector.trigger()
     assert (
         await mock_eiger_detector.data_logic.fileio.data_source.get_value()
-        == EigerDataSource.FILE_WRITER
+        == EigerDataSource.STREAM
     )
     assert (
         await mock_eiger_detector.driver.data_source.get_value()
-        == EigerDataSource.FILE_WRITER
+        == EigerDataSource.STREAM
     )
     await mock_eiger_detector.read()
     await mock_eiger_detector.trigger()
@@ -592,7 +592,7 @@ async def test_eiger_detector_with_RE(
     async def _write_file(value: bool) -> None:
         if value:
             sequence_id = (
-                await mock_eiger_detector.data_logic.fileio.sequence_id.get_value() + 1
+                await mock_eiger_detector.data_logic.fileio.sequence_id.get_value()
             )
             set_mock_value(
                 mock_eiger_detector.data_logic.fileio.sequence_id, sequence_id
@@ -603,7 +603,7 @@ async def test_eiger_detector_with_RE(
 
             num_images = await mock_eiger_detector.driver.num_images.get_value()
             write_eiger_hdf5_file(
-                num_images=num_images,
+                num_images=num_images * NUM_STEPS,
                 sequence_id=sequence_id,
                 name="test_eiger",
             )
@@ -632,12 +632,14 @@ async def test_eiger_detector_with_RE(
     set_mock_value(mock_eiger_detector.data_logic.fileio.sequence_id, 0)
     set_mock_value(mock_eiger_detector.driver.num_images, 1)
     set_mock_value(mock_eiger_detector.driver.acquire_period, 0.001)
+    NUM_STEPS = 1
     uid = RE(bp.count([mock_eiger_detector]))
     assert uid is not None
     assert (
         tiled_client.values().last()["primary"]["test_eiger_image"].read() is not None
     )
     assert tiled_client.values().last()["primary"]["test_eiger_image"].shape == (
+        1,
         1,
         2048,
         2048,
@@ -740,18 +742,20 @@ async def test_eiger_detector_with_RE(
     set_mock_value(mock_eiger_detector.data_logic.fileio.sequence_id, 2)
     set_mock_value(mock_eiger_detector.driver.num_images, 1)
     set_mock_value(mock_eiger_detector.driver.acquire_period, 0.001)
-    uid = RE(bp.count([mock_eiger_detector], num=10))
+    NUM_STEPS = 10
+    uid = RE(bp.count([mock_eiger_detector], num=NUM_STEPS))
     assert uid is not None
-    assert (
-        tiled_client.values().last()["primary"]["test_eiger_image"].read() is not None
-    )
     assert tiled_client.values().last()["primary"]["test_eiger_image"].shape == (
         10,
+        1,
         2048,
         2048,
     )
     assert (
         tiled_client.values().last()["primary"]["test_eiger_image"].dtype == np.uint32
+    )
+    assert (
+        tiled_client.values().last()["primary"]["test_eiger_image"].read() is not None
     )
     # TODO: Add these when empty shape datasets are supported by tiled
     # assert tiled_client.values().last()["primary"]["test_eiger_x_pixel_size"].read() is not None

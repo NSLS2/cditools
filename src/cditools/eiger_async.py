@@ -355,6 +355,7 @@ class EigerDataLogic(DetectorDataLogic):
     default_suffix: str = "cam1:"
     # Forced minimum number of images per file to force a single HDF5 file
     _min_num_images_per_file: int = 1_000_000_000
+    datakey_suffix: str = "_image"
 
     def __init__(
         self,
@@ -371,7 +372,7 @@ class EigerDataLogic(DetectorDataLogic):
     async def prepare_unbounded(self, datakey_name: str) -> StreamResourceDataProvider:
         """Provider can work for an unbounded number of collections."""
         # Get file path info from path provider
-        self._file_info = self._path_provider(datakey_name)
+        self._file_info = self._path_provider(self.fileio.parent.name)
         self._master_file_path_cache.clear()
 
         # Set the name pattern with $id replacement similar to original
@@ -428,9 +429,6 @@ class EigerDataLogic(DetectorDataLogic):
         shape = [x for x in shape if x > 0]
 
         mfp = await self._master_file_path
-        # TODO sort out how to get from parent
-        # TODO - should this be the datakey_name that gets passed in?
-        name = "eiger"
         exposures_per_event = await self.fileio.num_images.get_value()
 
         # TODO sort out how to tell tiled about the additional data files.
@@ -438,7 +436,7 @@ class EigerDataLogic(DetectorDataLogic):
             uri=urlunparse(("file", "localhost", str(mfp), "", "", None)),
             resources=[
                 StreamResourceInfo(
-                    data_key=f"{name}_image",
+                    data_key=datakey_name,
                     shape=(exposures_per_event, *shape),
                     # TODO sort out how to set this and mirror here
                     chunk_shape=(1, *shape),
@@ -446,8 +444,7 @@ class EigerDataLogic(DetectorDataLogic):
                     parameters={
                         "dataset": f"entry/data/data_{1:06d}",
                     },
-                    # TODO put in better value; should it match EigerDataSource.FILE_WRITER?
-                    source=EigerDataSource.STREAM,
+                    source='eiger',
                 )
             ],
             mimetype="application/x-hdf5",

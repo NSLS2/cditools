@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from typing import Annotated as A
 
 from ophyd_async.core import (
-    DetectorAcquireLogic,
     DetectorTriggerLogic,
     SignalDict,
     SignalR,
@@ -22,6 +21,7 @@ from ophyd_async.epics.adcore import (
     ADBaseDataType,
     ADBaseIO,
     ADWriterFactory,
+    ADAcquireLogic,
     AreaDetector,
     NDPluginBaseIO,
     prepare_exposures,
@@ -129,7 +129,7 @@ class MerlinDetector(AreaDetector[MerlinDriverIO]):
             driver,
             prefix,
             *writer_factories,
-            acquire_logic=DetectorAcquireLogic(driver),
+            acquire_logic=ADAcquireLogic(driver),
             trigger_logic=MerlinTriggerLogic(driver),
             plugins=plugins,
             config_sigs=config_sigs,

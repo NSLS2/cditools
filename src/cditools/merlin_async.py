@@ -9,13 +9,14 @@ from dataclasses import dataclass
 from typing import Annotated as A
 
 from ophyd_async.core import (
+    DetectorAcquireLogic,
     DetectorTriggerLogic,
-    DetectorArmLogic,
     PathProvider,
     SignalDict,
     SignalR,
     SignalRW,
     StrictEnum,
+    SubsetEnum,
     soft_signal_rw,
 )
 from ophyd_async.epics.adcore import (

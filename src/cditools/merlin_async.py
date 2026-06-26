@@ -17,10 +17,10 @@ from ophyd_async.core import (
     soft_signal_rw,
 )
 from ophyd_async.epics.adcore import (
+    ADAcquireLogic,
     ADBaseDataType,
     ADBaseIO,
     ADWriterFactory,
-    ADAcquireLogic,
     AreaDetector,
     NDPluginBaseIO,
     prepare_exposures,

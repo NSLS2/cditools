@@ -43,9 +43,16 @@ from ophyd_async.epics.adcore import (
     AreaDetector,
     NDFileIO,
     NDPluginBaseIO,
-    trigger_info_from_num_images,
 )
 from ophyd_async.epics.core import PvSuffix, stop_busy_record
+
+
+async def trigger_info_from_num_images(driver: ADBaseIO) -> TriggerInfo:
+    """Default TriggerInfo for AD detectors, reading num_images from the driver."""
+    num = await driver.num_images.get_value()
+    livetime = await driver.acquire_time.get_value()
+    return TriggerInfo(collections_per_event=max(1, num), livetime=livetime)
+
 
 logger = getLogger(__name__)
 

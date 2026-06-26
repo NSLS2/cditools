@@ -44,7 +44,7 @@ class MerlinTriggerMode(StrictEnum):
     TRIGGER_ENABLE = "Trigger Enable"
     TRIGGER_START_RISING = "Trigger start rising"
     TRIGGER_START_FALLING = "Trigger start falling"
-    TRIGGER_BOTH_RISING = "Trigger both rising "
+    TRIGGER_BOTH_RISING = "Trigger both rising"
     SOFTWARE = "Software"
 
 

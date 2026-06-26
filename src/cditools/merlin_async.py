@@ -10,16 +10,17 @@ from typing import Annotated as A
 
 from ophyd_async.core import (
     DetectorTriggerLogic,
-    PathProvider,
     SignalDict,
     SignalR,
     SignalRW,
     StrictEnum,
+    soft_signal_rw,
 )
 from ophyd_async.epics.adcore import (
-    ADArmLogic,
+    ADAcquireLogic,
+    ADBaseDataType,
     ADBaseIO,
-    ADWriterType,
+    ADWriterFactory,
     AreaDetector,
     NDPluginBaseIO,
     prepare_exposures,
@@ -54,7 +55,7 @@ class MerlinTriggerModeRBV(StrictEnum):
     TRIGGER_ENABLE = "Trigger Enable"
     TRIGGER_START_RISING = "Trigger start rising"
     TRIGGER_START_FALLING = "Trigger start falling"
-    TRIGGER_BOTH_RISING = "Trigger both rising "
+    TRIGGER_BOTH_RISING = "Trigger both rising"
     SOFTWARE = "Software"
 
 
@@ -66,6 +67,14 @@ class MerlinDriverIO(ADBaseIO):
     """
 
     trigger_mode: A[SignalRW[MerlinTriggerMode], PvSuffix.rbv("TriggerMode")]
+
+    # Since ADMerlin doesn't set the data type readback correctly, but is always uint16,
+    # just turn it into a static soft signal
+    def __init__(self, prefix: str, name: str = ""):
+        super().__init__(prefix, name=name)
+        self.data_type = soft_signal_rw(
+            ADBaseDataType, ADBaseDataType.UINT16, name="data_type"
+        )
 
 
 # The deadtime of an Merlin controller varies depending on the exact model of camera.
@@ -85,7 +94,6 @@ class MerlinTriggerLogic(DetectorTriggerLogic):
         await prepare_exposures(self.driver, num, livetime, deadtime)
 
     async def prepare_edge(self, num: int, livetime: float):
-        # Is this the right trigger mode?
         await self.driver.trigger_mode.set(MerlinTriggerMode.TRIGGER_START_RISING)
         await prepare_exposures(self.driver, num, livetime)
 
@@ -109,23 +117,19 @@ class MerlinDetector(AreaDetector[MerlinDriverIO]):
     def __init__(
         self,
         prefix: str,
-        path_provider: PathProvider | None = None,
+        *writer_factories: ADWriterFactory,
         driver_suffix="cam1:",
-        writer_type: ADWriterType | None = ADWriterType.HDF,
-        writer_suffix: str | None = None,
         plugins: dict[str, NDPluginBaseIO] | None = None,
         config_sigs: Sequence[SignalR] = (),
         name: str = "",
     ) -> None:
         driver = MerlinDriverIO(prefix + driver_suffix)
         super().__init__(
-            prefix=prefix,
-            driver=driver,
-            arm_logic=ADArmLogic(driver),
+            driver,
+            prefix,
+            *writer_factories,
+            acquire_logic=ADAcquireLogic(driver),
             trigger_logic=MerlinTriggerLogic(driver),
-            path_provider=path_provider,
-            writer_type=writer_type,
-            writer_suffix=writer_suffix,
             plugins=plugins,
             config_sigs=config_sigs,
             name=name,

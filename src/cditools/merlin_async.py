@@ -11,7 +11,6 @@ from typing import Annotated as A
 from ophyd_async.core import (
     DetectorAcquireLogic,
     DetectorTriggerLogic,
-    PathProvider,
     SignalDict,
     SignalR,
     SignalRW,
@@ -22,7 +21,7 @@ from ophyd_async.core import (
 from ophyd_async.epics.adcore import (
     ADBaseDataType,
     ADBaseIO,
-    ADWriterType,
+    ADWriterFactory,
     AreaDetector,
     NDPluginBaseIO,
     prepare_exposures,
@@ -119,23 +118,19 @@ class MerlinDetector(AreaDetector[MerlinDriverIO]):
     def __init__(
         self,
         prefix: str,
-        path_provider: PathProvider | None = None,
+        *writer_factories: ADWriterFactory,
         driver_suffix="cam1:",
-        writer_type: ADWriterType | None = ADWriterType.HDF,
-        writer_suffix: str | None = None,
         plugins: dict[str, NDPluginBaseIO] | None = None,
         config_sigs: Sequence[SignalR] = (),
         name: str = "",
     ) -> None:
         driver = MerlinDriverIO(prefix + driver_suffix)
         super().__init__(
-            prefix=prefix,
-            driver=driver,
-            arm_logic=DetectorArmLogic(driver),
+            driver,
+            prefix,
+            *writer_factories,
+            acquire_logic=DetectorAcquireLogic(driver),
             trigger_logic=MerlinTriggerLogic(driver),
-            path_provider=path_provider,
-            writer_type=writer_type,
-            writer_suffix=writer_suffix,
             plugins=plugins,
             config_sigs=config_sigs,
             name=name,

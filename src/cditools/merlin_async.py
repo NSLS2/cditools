@@ -14,7 +14,6 @@ from ophyd_async.core import (
     SignalR,
     SignalRW,
     StrictEnum,
-    SubsetEnum,
     soft_signal_rw,
 )
 from ophyd_async.epics.adcore import (
@@ -38,7 +37,7 @@ __all__ = [
 _MIN_DEAD_TIME = 0.002
 
 
-class MerlinTriggerMode(SubsetEnum):
+class MerlinTriggerMode(StrictEnum):
     """Trigger modes for the Merlin detector"""
 
     INTERNAL = "Internal"

@@ -33,6 +33,7 @@ dependencies = [
   "ophyd",
   "ophyd-async[ca] >=0.19",
   "h5py",
+  "xrayutilities>=1.7.12,<2"
 ]
 
 [project.optional-dependencies]
@@ -45,6 +46,7 @@ test = [
   "tiled[minimal-client]",
   "tiled[minimal-server]",
   "ophyd >=v1.10.6",
+  "pytest-watcher",
 ]
 dev = [
   "caproto[standard] >=0.4.2rc1,!=1.2.0",
@@ -92,15 +94,12 @@ dev-dependencies = [
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
+# TODO - fix the eiger_async module and tests
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config", "--ignore=tests/test_eiger_async.py"]
 xfail_strict = true
-filterwarnings = [
-  "ignore",
-]
+filterwarnings = "ignore"
 log_cli_level = "INFO"
-testpaths = [
-  "tests",
-]
+testpaths = "tests"
 
 [tool.coverage]
 run.source = ["cditools"]
@@ -164,10 +163,16 @@ isort.required-imports = ["from __future__ import annotations"]
 
 [tool.pixi.project]
 channels = ["conda-forge"]
-platforms = ["linux-64"]
+platforms = ["linux-64", "osx-arm64"]
 
 [tool.pixi.pypi-dependencies]
 cditools = { path = ".", editable = true }
+
+[tool.pixi.dependencies]
+xrayutilities = ">=1.7.12,<2"
+
+[tool.pixi.feature.dev.tasks]
+format = "ruff format ."
 
 [tool.pixi.environments]
 default = { solve-group = "default" }

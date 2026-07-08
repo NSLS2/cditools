@@ -531,6 +531,8 @@ class EigerAcquireLogic(DetectorAcquireLogic):
         await stop_busy_record(self.driver.acquire)
 
         self._cached_trigger_mode = await self.driver.trigger_mode.get_value()
+        self._cached_acquire_state = await self.driver.acquire.get_value()
+        self._cached_image_mode = await self.driver.image_mode.get_value()
 
     async def ensure_stopped(self):
         await stop_busy_record(self.driver.acquire)
@@ -538,13 +540,19 @@ class EigerAcquireLogic(DetectorAcquireLogic):
         coros = []
         if self._cached_trigger_mode is not None:
             coros.append(self.driver.trigger_mode.set(self._cached_trigger_mode))
-
+        if self._cached_image_mode is not None:
+            coros.append(self.driver.image_mode.set(self._cached_image_mode))
         await asyncio.gather(
             self.driver.manual_trigger.set(False),
             self.driver.num_triggers.set(1),
             *coros
         )
         self._cached_trigger_mode = None
+        self._cached_image_mode = None
+
+        if self._cached_acquire_state is not None:
+            await self.driver.acquire.set(self._cached_acquire_state)
+        self._cached_acquire_state = None
 
 
 class EigerDetector(AreaDetector[Eiger2DriverIO]):

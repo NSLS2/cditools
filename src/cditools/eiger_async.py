@@ -14,6 +14,7 @@ from urllib.parse import urlunparse
 
 import numpy as np
 from ophyd_async.core import (
+    ADState,
     AsyncStatus,
     DetectorAcquireLogic,
     DetectorDataLogic,
@@ -528,7 +529,8 @@ class EigerAcquireLogic(DetectorAcquireLogic):
 
     # We are intentionally not calling the base class implementation
     async def ensure_ready(self):
-        self._cached_acquire_state = await self.driver.acquire.get_value()
+        detector_state = await self.driver.detector_state.get_value()
+        self._cached_acquire_state = detector_state == ADState.ACQUIRE
         self._cached_trigger_mode = await self.driver.trigger_mode.get_value()
         self._cached_image_mode = await self.driver.image_mode.get_value()
 

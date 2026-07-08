@@ -14,7 +14,6 @@ from urllib.parse import urlunparse
 
 import numpy as np
 from ophyd_async.core import (
-    ADState,
     AsyncStatus,
     DetectorAcquireLogic,
     DetectorDataLogic,
@@ -41,6 +40,7 @@ from ophyd_async.core._utils import (
 from ophyd_async.epics.adcore import (
     ADBaseIO,
     ADImageMode,
+    ADState,
     AreaDetector,
     NDFileIO,
     NDPluginBaseIO,

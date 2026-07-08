@@ -527,12 +527,12 @@ class EigerAcquireLogic(DetectorAcquireLogic):
 
     # We are intentionally not calling the base class implementation
     async def ensure_ready(self):
+        self._cached_acquire_state = await self.driver.acquire.get_value()
+        self._cached_trigger_mode = await self.driver.trigger_mode.get_value()
+        self._cached_image_mode = await self.driver.image_mode.get_value()
+
         self._rolling_image_counter = 0
         await stop_busy_record(self.driver.acquire)
-
-        self._cached_trigger_mode = await self.driver.trigger_mode.get_value()
-        self._cached_acquire_state = await self.driver.acquire.get_value()
-        self._cached_image_mode = await self.driver.image_mode.get_value()
 
     async def ensure_stopped(self):
         await stop_busy_record(self.driver.acquire)

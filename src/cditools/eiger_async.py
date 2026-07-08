@@ -496,6 +496,7 @@ class EigerAcquireLogic(DetectorAcquireLogic):
     def __init__(
         self, driver: Eiger2DriverIO, driver_armed_signal: SignalR[bool] | None = None
     ):
+        self._cached_trigger_mode: EigerTriggerMode | None = None
         self.driver = driver
         # TODO - remove? driver_armed_signal doesn't seem to be a thing anywhere else
         if driver_armed_signal is not None:
@@ -525,14 +526,34 @@ class EigerAcquireLogic(DetectorAcquireLogic):
             if images_complete == target_num_images:
                 break
 
-    async def ensure_stopped(self):
+    # We are intentionally not calling the base class implementation
+    async def ensure_ready(self):
+        self._cached_acquire_state = await self.driver.acquire.get_value()
+        self._cached_trigger_mode = await self.driver.trigger_mode.get_value()
+        self._cached_image_mode = await self.driver.image_mode.get_value()
+
         self._rolling_image_counter = 0
         await stop_busy_record(self.driver.acquire)
 
+    async def ensure_stopped(self):
+        await stop_busy_record(self.driver.acquire)
+
+        coros = []
+        if self._cached_trigger_mode is not None:
+            coros.append(self.driver.trigger_mode.set(self._cached_trigger_mode))
+        if self._cached_image_mode is not None:
+            coros.append(self.driver.image_mode.set(self._cached_image_mode))
         await asyncio.gather(
             self.driver.manual_trigger.set(False),
             self.driver.num_triggers.set(1),
+            *coros,
         )
+        self._cached_trigger_mode = None
+        self._cached_image_mode = None
+
+        if self._cached_acquire_state is not None:
+            await self.driver.acquire.set(self._cached_acquire_state)
+        self._cached_acquire_state = None
 
 
 class EigerDetector(AreaDetector[Eiger2DriverIO]):

@@ -543,7 +543,7 @@ async def test_eiger_detector(mock_eiger_detector: EigerDetector) -> None:
             mock_eiger_detector.driver.num_images_counter, num_images_counter + 1
         )
 
-    callback_on_mock_put(mock_eiger_detector.driver.trigger, _simulate_one_trigger)
+    callback_on_mock_put(mock_eiger_detector.driver.trigger_, _simulate_one_trigger)
 
     # Standalone methods
     await mock_eiger_detector.prepare(
@@ -638,7 +638,7 @@ async def test_eiger_detector_with_RE(
 
     tiled_writer = TiledWriter(tiled_client)
     RE.subscribe(tiled_writer)
-    callback_on_mock_put(mock_eiger_detector.driver.trigger, _write_file)
+    callback_on_mock_put(mock_eiger_detector.driver.trigger_, _write_file)
 
     set_mock_value(mock_eiger_detector.data_logic.fileio.sequence_id, 0)
     set_mock_value(mock_eiger_detector.driver.num_images, 1)

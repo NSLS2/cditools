@@ -188,7 +188,7 @@ class EigerDriverIO(ADBaseIO, NDFileIO):
     photon_energy: A[SignalRW[float], PvSuffix.rbv("PhotonEnergy")]
 
     # Trigger Setup
-    trigger: A[SignalRW[float], PvSuffix("Trigger")]
+    trigger_: A[SignalRW[float], PvSuffix("Trigger")]
     trigger_exposure: A[SignalRW[float], PvSuffix.rbv("TriggerExposure")]
     num_triggers: A[SignalRW[int], PvSuffix.rbv("NumTriggers")]
     manual_trigger: A[SignalRW[bool], PvSuffix.rbv("ManualTrigger")]
@@ -509,7 +509,7 @@ class EigerAcquireLogic(DetectorAcquireLogic):
 
     async def start_acquiring(self):
         self._rolling_image_counter = await self.driver.num_images_counter.get_value()
-        ret = await self.driver.trigger.set(1)
+        ret = await self.driver.trigger_.set(1)
         return ret
 
     async def wait_for_idle(self):

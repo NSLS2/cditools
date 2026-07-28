@@ -15,8 +15,13 @@ backend = { name = "pixi-build-python", version = "*" }
 ignore-pyproject-manifest = false
 ignore-pypi-mapping = false  # Enable automatic PyPI-to-conda mapping
 
+[package.run-dependencies]
+hkl = { git = "https://git@github.com/nsls2/hkl.git", rev="add-cdi" }
+hklpy2 = "*"
+
 [dependencies]
 cditools = { path = "." }
+
 
 [feature.test.dependencies]
 entrypoints = ">=0.4,<0.5"

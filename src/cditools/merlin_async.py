@@ -131,7 +131,7 @@ class MerlinAcquireLogic(ADAcquireLogic):
         self._cached_num_images = None
         self._cached_trigger_mode = None
 
-        await self.driver.acquire.set("Acquire")
+        await self.driver.acquire.set(1)
 
 
 class MerlinDetector(AreaDetector[MerlinDriverIO]):

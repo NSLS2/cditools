@@ -21,6 +21,7 @@ from ophyd_async.epics.adcore import (
     ADAcquireLogic,
     ADBaseDataType,
     ADBaseIO,
+    ADState,
     ADWriterFactory,
     AreaDetector,
     NDPluginBaseIO,
@@ -105,6 +106,9 @@ class MerlinTriggerLogic(DetectorTriggerLogic):
 
 class MerlinAcquireLogic(ADAcquireLogic):
     async def ensure_ready(self):
+        detector_state = await self.driver.detector_state.get_value()
+        self._cached_acquire_state = detector_state != ADState.IDLE
+
         self._cached_image_mode = await self.driver.image_mode.get_value()
         self._cached_trigger_mode = await self.driver.trigger_mode.get_value()
         self._cached_num_images = await self.driver.num_images.get_value()
@@ -131,7 +135,9 @@ class MerlinAcquireLogic(ADAcquireLogic):
         self._cached_num_images = None
         self._cached_trigger_mode = None
 
-        await self.driver.acquire.set(1)
+        if self._cached_acquire_state is not None:
+            await self.driver.acquire.set(self._cached_acquire_state)
+        self._cached_acquire_state = None
 
 
 class MerlinDetector(AreaDetector[MerlinDriverIO]):

@@ -68,6 +68,7 @@ class MerlinDriverIO(ADBaseIO):
     """
 
     trigger_mode: A[SignalRW[MerlinTriggerMode], PvSuffix.rbv("TriggerMode")]
+    acquire: A[SignalRW[bool], PvSuffix.rbv("Acquire"), EpicsOptions(wait=False)]
 
     # Since ADMerlin doesn't set the data type readback correctly, but is always uint16,
     # just turn it into a static soft signal
@@ -130,7 +131,7 @@ class MerlinAcquireLogic(ADAcquireLogic):
         self._cached_num_images = None
         self._cached_trigger_mode = None
 
-        await self.driver.acquire.set(1)
+        await self.driver.acquire.set("Acquire")
 
 
 class MerlinDetector(AreaDetector[MerlinDriverIO]):

@@ -4,6 +4,7 @@ Ophyd Async implementation for the Merlin Detector
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Annotated as A
@@ -20,13 +21,14 @@ from ophyd_async.epics.adcore import (
     ADAcquireLogic,
     ADBaseDataType,
     ADBaseIO,
+    ADState,
     ADWriterFactory,
     AreaDetector,
     NDPluginBaseIO,
     prepare_exposures,
     trigger_info_from_num_images,
 )
-from ophyd_async.epics.core import PvSuffix
+from ophyd_async.epics.core import EpicsOptions, PvSuffix, stop_busy_record
 
 __all__ = [
     "MerlinDetector",
@@ -67,6 +69,7 @@ class MerlinDriverIO(ADBaseIO):
     """
 
     trigger_mode: A[SignalRW[MerlinTriggerMode], PvSuffix.rbv("TriggerMode")]
+    acquire: A[SignalRW[bool], PvSuffix.rbv("Acquire"), EpicsOptions(wait=False)]
 
     # Since ADMerlin doesn't set the data type readback correctly, but is always uint16,
     # just turn it into a static soft signal
@@ -101,6 +104,42 @@ class MerlinTriggerLogic(DetectorTriggerLogic):
         return await trigger_info_from_num_images(self.driver)
 
 
+class MerlinAcquireLogic(ADAcquireLogic):
+    async def ensure_ready(self):
+        detector_state = await self.driver.detector_state.get_value()
+        self._cached_acquire_state = detector_state != ADState.IDLE
+
+        self._cached_image_mode = await self.driver.image_mode.get_value()
+        self._cached_trigger_mode = await self.driver.trigger_mode.get_value()
+        self._cached_num_images = await self.driver.num_images.get_value()
+        await stop_busy_record(self.driver.acquire)
+
+    async def ensure_stopped(self):
+        """
+        After a scan, reset the merlin to default settings,
+        and start it running
+        """
+        await stop_busy_record(self.driver.acquire)
+
+        coros = []
+        if self._cached_image_mode is not None:
+            coros.append(self.driver.image_mode.set(self._cached_image_mode))
+        if self._cached_num_images is not None:
+            coros.append(self.driver.num_images.set(self._cached_num_images))
+        if self._cached_trigger_mode is not None:
+            coros.append(self.driver.trigger_mode.set(self._cached_trigger_mode))
+
+        await asyncio.gather(*coros)
+
+        self._cached_image_mode = None
+        self._cached_num_images = None
+        self._cached_trigger_mode = None
+
+        if self._cached_acquire_state is not None:
+            await self.driver.acquire.set(self._cached_acquire_state)
+        self._cached_acquire_state = None
+
+
 class MerlinDetector(AreaDetector[MerlinDriverIO]):
     """Create an ADMerlin AreaDetector instance.
 
@@ -118,7 +157,7 @@ class MerlinDetector(AreaDetector[MerlinDriverIO]):
         self,
         prefix: str,
         *writer_factories: ADWriterFactory,
-        driver_suffix="cam1:",
+        driver_suffix: str = "cam1:",
         plugins: dict[str, NDPluginBaseIO] | None = None,
         config_sigs: Sequence[SignalR] = (),
         name: str = "",
@@ -128,7 +167,7 @@ class MerlinDetector(AreaDetector[MerlinDriverIO]):
             driver,
             prefix,
             *writer_factories,
-            acquire_logic=ADAcquireLogic(driver),
+            acquire_logic=MerlinAcquireLogic(driver),
             trigger_logic=MerlinTriggerLogic(driver),
             plugins=plugins,
             config_sigs=config_sigs,

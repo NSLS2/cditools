@@ -4,6 +4,7 @@ Ophyd Async implementation for the Merlin Detector
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Annotated as A
@@ -104,14 +105,32 @@ class MerlinTriggerLogic(DetectorTriggerLogic):
 class MerlinAcquireLogic(ADAcquireLogic):
     async def ensure_ready(self):
         self._cached_image_mode = await self.driver.image_mode.get_value()
+        self._cached_trigger_mode = await self.driver.trigger_mode.get_value()
+        self._cached_num_images = await self.driver.num_images.get_value()
         await stop_busy_record(self.driver.acquire)
 
     async def ensure_stopped(self):
+        """
+        After a scan, reset the merlin to default settings,
+        and start it running
+        """
         await stop_busy_record(self.driver.acquire)
 
+        coros = []
         if self._cached_image_mode is not None:
-            await self.driver.image_mode.set(self._cached_image_mode)
+            coros.append(self.driver.image_mode.set(self._cached_image_mode))
+        if self._cached_num_images is not None:
+            coros.append(self.driver.num_images.set(self._cached_num_images))
+        if self._cached_trigger_mode is not None:
+            coros.append(self.driver.trigger_mode.set(self._cached_trigger_mode))
+
+        await asyncio.gather(*coros)
+
         self._cached_image_mode = None
+        self._cached_num_images = None
+        self._cached_trigger_mode = None
+
+        await self.driver.acquire.set(1)
 
 
 class MerlinDetector(AreaDetector[MerlinDriverIO]):

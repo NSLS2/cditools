@@ -26,7 +26,7 @@ from ophyd_async.epics.adcore import (
     prepare_exposures,
     trigger_info_from_num_images,
 )
-from ophyd_async.epics.core import PvSuffix
+from ophyd_async.epics.core import PvSuffix, stop_busy_record
 
 __all__ = [
     "MerlinDetector",
@@ -101,6 +101,20 @@ class MerlinTriggerLogic(DetectorTriggerLogic):
         return await trigger_info_from_num_images(self.driver)
 
 
+class MerlinAcquireLogic(ADAcquireLogic):
+
+    async def ensure_ready(self):
+        self._cached_image_mode = await self.driver.image_mode.get_value()
+        await stop_busy_record(self.driver.acquire)
+
+    async def ensure_stopped(self):
+        await stop_busy_record(self.driver.acquire)
+
+        if self._cached_image_mode is not None:
+            await self.driver.image_mode.set(self._cached_image_mode)
+        self._cached_image_mode = None
+
+
 class MerlinDetector(AreaDetector[MerlinDriverIO]):
     """Create an ADMerlin AreaDetector instance.
 
@@ -118,7 +132,7 @@ class MerlinDetector(AreaDetector[MerlinDriverIO]):
         self,
         prefix: str,
         *writer_factories: ADWriterFactory,
-        driver_suffix="cam1:",
+        driver_suffix: str ="cam1:",
         plugins: dict[str, NDPluginBaseIO] | None = None,
         config_sigs: Sequence[SignalR] = (),
         name: str = "",
@@ -128,7 +142,7 @@ class MerlinDetector(AreaDetector[MerlinDriverIO]):
             driver,
             prefix,
             *writer_factories,
-            acquire_logic=ADAcquireLogic(driver),
+            acquire_logic=MerlinAcquireLogic(driver),
             trigger_logic=MerlinTriggerLogic(driver),
             plugins=plugins,
             config_sigs=config_sigs,

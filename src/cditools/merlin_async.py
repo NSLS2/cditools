@@ -27,7 +27,7 @@ from ophyd_async.epics.adcore import (
     prepare_exposures,
     trigger_info_from_num_images,
 )
-from ophyd_async.epics.core import PvSuffix, stop_busy_record
+from ophyd_async.epics.core import EpicsOptions, PvSuffix, stop_busy_record
 
 __all__ = [
     "MerlinDetector",

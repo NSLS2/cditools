@@ -165,7 +165,7 @@ class VPM(Device):
             "p": (EpicsMotor, "Mir:VPM-Ax:Pitch}Mtr", {}),
             "r": (EpicsMotor, "Mir:VPM-Ax:Roll}Mtr", {}),
             "y": (EpicsMotor, "Mir:VPM-Ax:TY}Mtr", {}),
-            "x": (EpicsMotorRO, "Mir:VPM-Ax:TX}Mtr", {}),
+            "x": (EpicsMotor, "Mir:VPM-Ax:TX}Mtr", {}),
             "yaw": (EpicsMotorRO, "Mir:VPM-Ax:Yaw}Mtr", {}),
             "us_lt": (EpicsMotorRO, "Mir:VPM-Ax:XU}Mtr", {}),
             "ds_lt": (EpicsMotorRO, "Mir:VPM-Ax:XD}Mtr", {}),

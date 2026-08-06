@@ -15,7 +15,7 @@ from ophyd_async.core import (
     SignalR,
     SignalRW,
     StrictEnum,
-    soft_signal_rw,
+    derived_signal_r,
 )
 from ophyd_async.epics.adcore import (
     ADAcquireLogic,
@@ -61,6 +61,13 @@ class MerlinTriggerModeRBV(StrictEnum):
     SOFTWARE = "Software"
 
 
+class MerlinCounterDepth(StrictEnum):
+    """Counter Depth options for Merlin detector"""
+
+    BIT_12 = "12 bit"
+    BIT_24 = "24 bit"
+
+
 class MerlinDriverIO(ADBaseIO):
     """Driver for merlin model:DU897_BV as deployed on p99.
 
@@ -70,14 +77,25 @@ class MerlinDriverIO(ADBaseIO):
 
     trigger_mode: A[SignalRW[MerlinTriggerMode], PvSuffix.rbv("TriggerMode")]
     acquire: A[SignalRW[bool], PvSuffix.rbv("Acquire"), EpicsOptions(wait=False)]
+    counter_depth: A[SignalRW[MerlinCounterDepth], PvSuffix.rbv("CounterDepth")]
 
     # Since ADMerlin doesn't set the data type readback correctly, but is always uint16,
     # just turn it into a static soft signal
     def __init__(self, prefix: str, name: str = ""):
         super().__init__(prefix, name=name)
-        self.data_type = soft_signal_rw(
-            ADBaseDataType, ADBaseDataType.UINT16, name="data_type"
+        self.data_type = derived_signal_r(
+            self.get_data_type, counter_depth=self.counter_depth
         )
+
+    def get_data_type(self, counter_depth: str):
+        """
+        CounterDepth is either "12 Bit" or "24 Bit".
+        12 Bit corresponds to uint16
+        24 Bit corresponds to uint32
+        """
+        if counter_depth == MerlinCounterDepth.BIT_12:
+            return ADBaseDataType.UINT16
+        return ADBaseDataType.UINT32
 
 
 # The deadtime of an Merlin controller varies depending on the exact model of camera.
@@ -105,6 +123,10 @@ class MerlinTriggerLogic(DetectorTriggerLogic):
 
 
 class MerlinAcquireLogic(ADAcquireLogic):
+    """Acquire logic for MerlinDriverIO"""
+
+    driver: MerlinDriverIO
+
     async def ensure_ready(self):
         detector_state = await self.driver.detector_state.get_value()
         self._cached_acquire_state = detector_state != ADState.IDLE

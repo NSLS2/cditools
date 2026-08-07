@@ -1,8 +1,12 @@
-import pytest
+from __future__ import annotations
+
 from dataclasses import dataclass
+
+import pytest
 from bluesky.run_engine import RunEngine
 from ophyd_async.core import init_devices, set_mock_value
 from ophyd_async.epics.adcore import ADBaseDataType
+
 from cditools.merlin_async import MerlinCounterDepth, MerlinDriverIO
 
 
@@ -23,6 +27,8 @@ def mock_merlin_driver(RE: RunEngine) -> MerlinDriverIO:
 
     return driver
 
+
+@pytest.mark.asyncio
 async def test_driver_data_type(mock_merlin_driver: MerlinDriverIO):
     assert await mock_merlin_driver.data_type.get_value() == ADBaseDataType.UINT16
 

@@ -87,7 +87,7 @@ class MerlinDriverIO(ADBaseIO):
             self.get_data_type, counter_depth=self.counter_depth
         )
 
-    def get_data_type(self, counter_depth: str):
+    def get_data_type(self, counter_depth: str) -> ADBaseDataType:
         """
         CounterDepth is either "12 Bit" or "24 Bit".
         12 Bit corresponds to uint16

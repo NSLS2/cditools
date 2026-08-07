@@ -53,6 +53,8 @@ def black_hole_ioc() -> Generator[None, None, None]:
     p.wait()
 
 
+CONNECT_TIMEOUT = 120
+
 def test_motors_can_connect(black_hole_ioc: None) -> None:
     dm1 = DM1(prefix="XF:09IDA-OP:1{", name="dm1")
     dm1.wait_for_connection(timeout=60.0)

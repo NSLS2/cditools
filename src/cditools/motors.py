@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import ClassVar
 
 import numpy as np
-from ophyd import Component as Cpt  # type: ignore[import-not-found]
+from ophyd import Component as Cpt
 from ophyd import Device, EpicsMotor, PseudoPositioner, PseudoSingle
 from ophyd import DynamicDeviceComponent as DDC
 from ophyd.pseudopos import (

@@ -6476,7 +6476,7 @@ packages:
   - sphinx-copybutton ; extra == 'docs'
   - sphinx-autodoc-typehints ; extra == 'docs'
   - furo>=2023.8.17 ; extra == 'docs'
-  requires_python: '>=3.11'
+  requires_python: '>=3.12'
 - pypi: https://files.pythonhosted.org/packages/00/c0/8f5d070730d7836adc9c9b6408dec68c6ced86b304a9b26a14df072a6e8c/traitlets-5.14.3-py3-none-any.whl
   name: traitlets
   version: 5.14.3

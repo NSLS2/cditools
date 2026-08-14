@@ -8,7 +8,6 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
-import ophyd_async.epics.core._aioca as _ophyd_aioca
 import pytest
 from bluesky._vendor.super_state_machine.errors import TransitionError
 from bluesky.run_engine import RunEngine
@@ -17,7 +16,6 @@ from tiled.client.container import Container
 from tiled.server.simple import SimpleTiledServer
 
 _ALLOWED_PYTEST_TASKS = {"async_finalizer", "async_setup", "async_teardown"}
-
 
 
 # ==================================================================================

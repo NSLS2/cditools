@@ -20,6 +20,9 @@ ophyd = "*"
 h5py = "*"
 xrayutilities = ">=1.7.12,<2"
 
+[pypi-dependencies]
+cditools = { path = ".", editable = true }
+
 [target.linux-64.dependencies]
 ophyd-async = { version = ">=0.21", extras = ["ca"] }
 
@@ -27,8 +30,6 @@ ophyd-async = { version = ">=0.21", extras = ["ca"] }
 # epicscorelibs is not available for osx-arm64 on conda-forge
 [target.osx-arm64.pypi-dependencies]
 ophyd-async = { version = ">=0.21", extras = ["ca"] }
-
-cditools = { path = "." }
 
 [feature.test.dependencies]
 entrypoints = ">=0.4,<0.5"
@@ -62,10 +63,8 @@ sphinx-copybutton = ">=0.5.2,<0.6"
 sphinx-autodoc-typehints = ">=3.13.0,<4"
 furo = ">=2025.12.19,<2026"
 
-
 [feature.docs.tasks]
 docs = "sphinx-build -T -b html -d docs/_build/doctrees -D language=en docs docs/_build/html"
-
 
 [environments]
 default = { solve-group = "default" }

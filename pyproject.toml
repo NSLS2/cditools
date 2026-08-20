@@ -29,38 +29,27 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
   "ophyd",
-  "ophyd-async[ca] >=0.19",
+  "ophyd-async[ca] >=0.21",
   "h5py",
   "xrayutilities>=1.7.12,<2"
 ]
 
 [dependency-groups]
-test = [
+dev = [
   "entrypoints",
   "pytest >=6",
   "pytest-cov >=3",
   "pytest-asyncio >=0.18",
+  "pytest-watcher",
   "caproto[standard] >=0.4.2rc1,!=1.2.0",
   "tiled[minimal-client]",
   "tiled[minimal-server]",
-  "ophyd >=v1.10.6",
-  "pytest-watcher",
-]
-dev = [
-  "caproto[standard] >=0.4.2rc1,!=1.2.0",
-  "pytest >=6",
-  "pytest-cov >=3",
-  "pytest-asyncio >=0.18",
   "pandas",
   "pre-commit",
   "ipython",
   "ruff",
-  "aioca",
-  "tiled[minimal-client,server]",
   "pyright",
-  "ophyd >=v1.10.6",
   "twine",
-  "build"
 ]
 docs = [
   "sphinx>=7.0",

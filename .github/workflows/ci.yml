@@ -72,7 +72,7 @@ jobs:
 
       - name: Test package
         run: >-
-          pixi run -e test pytest -ra --cov --cov-report=xml --cov-report=term
+          pixi run -e dev pytest -ra --cov --cov-report=xml --cov-report=term
           --durations=20
 
       - name: Upload coverage report

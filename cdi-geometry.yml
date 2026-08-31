@@ -1,10 +1,4 @@
-# fivec — five-circle diffractometer (fourcv on a vertical mu base).
-#
-# This file is a *demonstration* of the declarative geometry schema
-# (issue #267).  Real beamlines should copy a file like this and
-# adapt it to their own instrument; do not assume the values here
-# describe any production diffractometer.
-#
+# CDI 7-circle diffractometer prototype.
 # Schema reference: docs/source/reference/declarative_geometry_schema.md
 # How-to:           docs/source/howto/custom_geometry.md
 
@@ -14,42 +8,32 @@ ad_hoc_diffractometer_geometry:
 name: five_two_two_c
 
 documentation: |
-  Eulerian Five-Circle (Vlieg et al. 1987).
+  CDI 7-circle diffractometer prototype.
 
-  A standard Eulerian four-circle (fourcv) is mounted on a fifth
-  vertical rotation stage (mu) as a base.  The sample and detector
-  motions are coupled through mu.  This provides an additional
-  degree of freedom for accessing wider regions of reciprocal space,
-  particularly at synchrotron sources.
+  This is a working first model of the CDI stack from beamline notes.
+  The top two sample rotations are fixed at zero in the initial mode.
 
 
-  Walko (2016) designation: (S3D1)1.
+  The solver has special handling for an Eulerian inner pair named
+  ``chi`` and ``phi``.  These names are solver-facing aliases for the
+  two lower CDI sample stages noted as omega/chi during beamline
+  discussion:
+
+      chi  -> gon.sam.c_lg.lrx / omega1 in earlier notes
+      phi  -> gon.sam.c_lg.lrz / chi1 in earlier notes
 
 
-  # TODO - change for CDI
-  Default basis: You (1999) — vertical=+x, longitudinal=+y,
-  transverse=+z.
+  Basis used here: vertical=+Y, longitudinal=+Z, transverse=+X.
 
 
   Stack (floor first):
-      mu (shared base)         : vertical,     right-handed
-        --> omega (sample)     : transverse,   left-handed (mounted on mu)
-              --> chi          : longitudinal, right-handed (mounted on omega)
-                     --> phi   : transverse,   left-handed (mounted on chi)
-        --> ttheta (detector)  : transverse,   left-handed (mounted on mu)
-
-
-  With ``mu = 0`` the geometry reduces to fourcv; the bisecting
-  solver handles this case identically to fourcv bisecting.  Modes
-  where ``mu != 0`` require a tilted-plane solver (not yet
-  implemented).
-
-
-  References
-
-  - E. Vlieg et al., J. Appl. Cryst. 20, 330-337 (1987).
-
-  - D.A. Walko, Ref. Module Mater. Sci. Mater. Eng. (2016).
+      mu                  : vertical
+        --> chi           : longitudinal
+              --> phi     : transverse
+                    --> omega2 : longitudinal, fixed at 0 in fixed_alpha
+                          --> chi2 : transverse, fixed at 0 in fixed_alpha
+      gamma1              : transverse detector axis, fixed at 0 in fixed_alpha
+        --> delta1        : vertical detector axis
 
 basis:
   vertical: [0.0, 1.0, 0.0]
@@ -59,51 +43,24 @@ basis:
 stages:
   # TODO - check +/- signs
   - { name: mu, axis: +vertical, parent: null, role: sample } # Ry gon.sam.ry
-  - { name: omega1, axis: +longitudinal, parent: mu, role: sample } # Rx gon.sam.c_lg.lrx
-  - { name: chi1, axis: +transverse, parent: omega1, role: sample } # Rz gon.sam.c_lg.lrz
-  - { name: omega2, axis: +longitudinal, parent: chi1, role: sample } # Rx gon.sam.c_sm.lrx
+  - { name: chi, axis: +longitudinal, parent: mu, role: sample } # Rx gon.sam.c_lg.lrx / omega1
+  - { name: phi, axis: +transverse, parent: chi, role: sample } # Rz gon.sam.c_lg.lrz / chi1
+  - { name: omega2, axis: +longitudinal, parent: phi, role: sample } # Rx gon.sam.c_sm.lrx
   - { name: chi2, axis: +transverse, parent: omega2, role: sample } # Rz gon.sam.c_sm.lrz
   - { name: gamma1, axis: +transverse, parent: null, role: detector }
   - { name: delta1, axis: +vertical, parent: gamma1, role: detector }
     # - {name: gamma2, axis: +transverse, parent: null, role: detector }
     # - {name: delta2, axis: +vertical, parent: gamma2, role: detector }
 
-# fivec: 5 DOF, N - 3 = 2 constraints needed per mode.
+# 7 real axes, so N - 3 = 4 constraints are needed for a unique forward solve.
 modes:
-  fixed_chi_omega:
+  fixed_alpha:
+    default: true
     constraints:
       - { type: sample, stage: chi2, value: 0.0 }
       - { type: sample, stage: omega2, value: 0.0 }
-    computed: [mu, omega1, chi1, gamma1, delta1]
-
-  # TODO - remove
-  bisecting_4c:
-    default: true
-    constraints:
-      - { type: sample, stage: mu, value: 0.0 }
-      - { type: bisect, stage1: omega, stage2: ttheta }
-    computed: [omega, chi, phi, ttheta]
-
-  fixed_chi:
-    constraints:
-      - { type: sample, stage: mu, value: 0.0 }
-      - { type: sample, stage: chi, value: 90.0 }
-    computed: [omega, phi, ttheta]
-
-  fixed_phi:
-    constraints:
-      - { type: sample, stage: mu, value: 0.0 }
-      - { type: sample, stage: phi, value: 0.0 }
-    computed: [omega, chi, ttheta]
-
-  fixed_mu:
-    constraints:
-      - { type: sample, stage: mu, value: 0.0 }
-      - { type: bisect, stage1: omega, stage2: ttheta }
-    computed: [omega, chi, phi, ttheta]
-
-  fixed_omega_noncoplanar:
-    constraints:
-      - { type: sample, stage: mu, value: 0.0 }
-      - { type: sample, stage: omega, value: 0.0 }
-    computed: [mu, chi, phi, ttheta]
+      - { type: reference, name: incidence, value: 5.0 } # this will be user provided
+      # First working branch: hold the detector in the horizontal plane.
+      # For a vertical-detector branch, fix delta1 instead and compute gamma1.
+      - { type: detector, stage: gamma1, value: 0.0 }
+    computed: [mu, chi, phi, delta1]

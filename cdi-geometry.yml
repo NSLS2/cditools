@@ -44,7 +44,14 @@ stages:
   # TODO - check +/- signs
   - { name: mu, axis: +vertical, parent: null, role: sample } # Ry gon.sam.ry
   - { name: chi, axis: +longitudinal, parent: mu, role: sample } # Rx gon.sam.c_lg.lrx / omega1
+  # omega about the transverse axis
+  # phi is about the vertical when everything else is at 0, but would change as everythhing else moves
+  # we do not have a phi installed, so it should be zero or not included in the geometry.
+  # phi is on top of omega and chi and mu
   - { name: phi, axis: +transverse, parent: chi, role: sample } # Rz gon.sam.c_lg.lrz / chi1
+
+  # do not need to worry about second omega and chi; assume they are fixed
+  # we have double omega and double chi installed, but do not need to incorporate them right now
   - { name: omega2, axis: +longitudinal, parent: phi, role: sample } # Rx gon.sam.c_sm.lrx
   - { name: chi2, axis: +transverse, parent: omega2, role: sample } # Rz gon.sam.c_sm.lrz
   - { name: gamma1, axis: +transverse, parent: null, role: detector }
@@ -57,8 +64,13 @@ modes:
   fixed_alpha:
     default: true
     constraints:
+      # should constrain phi instead of detector motion
       - { type: sample, stage: chi2, value: 0.0 }
       - { type: sample, stage: omega2, value: 0.0 }
       - { type: sample, stage: phi, value: 0.0 }
       - { type: reference, name: incidence, value: 5.0 } # this will be user provided, 5.0 is just a placeholder
-    computed: [mu, chi, gamma1, delta1]
+    computed:
+      [mu, chi, gamma1, delta1]
+      # - { type: detector, stage: gamma1, value: 0.0 }
+    # computed: [mu, chi, phi, delta1]
+    # mu fixed at 0 mode / constraint

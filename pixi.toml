@@ -1,6 +1,6 @@
 [workspace]
 channels = ["conda-forge"]
-platforms = [{platform = "linux-64", glibc = "2.17"}, "osx-arm64"]
+platforms = [{platform = "linux-64", glibc = "2.17"}, "osx-arm64", "linux-64"]
 preview = ["pixi-build"]
 
 
@@ -19,12 +19,14 @@ ignore-pypi-mapping = false  # Enable automatic PyPI-to-conda mapping
 ophyd = "*"
 h5py = "*"
 xrayutilities = ">=1.7.12,<2"
+ad-hoc-diffractometer = ">=0.11.4,<0.12"
 
 [pypi-dependencies]
 cditools = { path = ".", editable = true }
 
 [target.linux-64.dependencies]
 ophyd-async = { version = ">=0.21", extras = ["ca"] }
+hklpy2 = ">=0.7.3,<0.8"
 
 # It is necessary to split ophyd-async to pypi on mac because
 # epicscorelibs is not available for osx-arm64 on conda-forge

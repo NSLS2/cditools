@@ -100,18 +100,6 @@ NORMAL_HINTED = Kind.hinted | Kind.normal
 
 class CDIDiffractometer(DiffractometerBase):
 
-    beam = Cpt(
-        EpicsMonochromatorRO,
-        "",
-        source_type="Simulated read-only EPICS Monochromator",
-        pv_energy="BraggERdbkAO",  # the energy readback PV
-        energy_units="keV",
-        pv_wavelength="BraggLambdaRdbkAO",  # the wavelength readback PV
-        wavelength_units="angstrom",
-        wavelength_deadband=0.000_150,
-        kind=NORMAL_HINTED,
-    )
-
     # Pseudo-space axes, in order expected by hkl_soleil E4CV, engine="hkl"
     h = Cpt(Hklpy2PseudoAxis, "", kind=NORMAL_HINTED)
     k = Cpt(Hklpy2PseudoAxis, "", kind=NORMAL_HINTED)

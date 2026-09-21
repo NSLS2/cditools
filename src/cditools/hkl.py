@@ -49,8 +49,8 @@ class CDIDiffractometer(DiffractometerBase):
         # self.delta1 = ...
 
         # configure energy readout from Energy device
-        self.beam = {'class': PseudoMonochromator,
-                     'energy_device': energy}
+        # self.beam = {'class': PseudoMonochromator,
+        #              'energy_device': energy}
 
         super().__init__(
             prefix='',

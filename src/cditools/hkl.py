@@ -54,6 +54,7 @@ class CDIDiffractometer(DiffractometerBase):
 
         super().__init__(
             prefix='',
+            name='cdi',
             geometry=register_geometry_file(CUSTOM_GEOMETRY_YAML_PATH),
             solver='ad_hoc',
             **kwargs

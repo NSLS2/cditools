@@ -57,6 +57,8 @@ class CDIDiffractometer(DiffractometerBase):
             name='cdi',
             geometry=register_geometry_file(CUSTOM_GEOMETRY_YAML_PATH),
             solver='ad_hoc',
+            reals=["mu", "chi", "phi", "omega2", "chi2", "gamma1", "delta1"],
+            pseudos=["h", "k", "l"],
             **kwargs
         )
 

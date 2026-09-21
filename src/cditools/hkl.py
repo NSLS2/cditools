@@ -8,7 +8,7 @@ from hklpy2.incident import WavelengthXray
 
 from cditools.motors import Energy, GON
 
-CUSTOM_GEOMETRY_YAML_PATH = Path(__file__).resolve().parent / "cdi-geometry.yml"
+CUSTOM_GEOMETRY_YAML_PATH = Path(__file__).resolve().parent / "config/cdi-geometry.yml"
 
 class PseudoMonochromator(WavelengthXray):
     """Incident beam whose energy tracks an ophyd ``PseudoSingle``.

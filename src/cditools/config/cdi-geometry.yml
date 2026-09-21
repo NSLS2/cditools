@@ -64,13 +64,9 @@ modes:
   fixed_alpha:
     default: true
     constraints:
-      # should constrain phi instead of detector motion
       - { type: sample, stage: chi2, value: 0.0 }
       - { type: sample, stage: omega2, value: 0.0 }
       - { type: sample, stage: phi, value: 0.0 }
       - { type: reference, name: incidence, value: 5.0 } # this will be user provided, 5.0 is just a placeholder
     computed:
       [mu, chi, gamma1, delta1]
-      # - { type: detector, stage: gamma1, value: 0.0 }
-    # computed: [mu, chi, phi, delta1]
-    # mu fixed at 0 mode / constraint

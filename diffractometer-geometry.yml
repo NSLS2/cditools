@@ -5,7 +5,7 @@
 ad_hoc_diffractometer_geometry:
   schema_revision: 1
 
-name: five_two_two_c
+name: cdi-geometry
 
 documentation: |
   CDI 7-circle diffractometer prototype.
@@ -68,5 +68,12 @@ modes:
       - { type: sample, stage: omega2, value: 0.0 }
       - { type: sample, stage: phi, value: 0.0 }
       - { type: reference, name: incidence, value: 5.0 } # this will be user provided, 5.0 is just a placeholder
+      # - { type: detector, stage: gamma1, value: 0.0 }
     computed:
       [mu, chi, gamma1, delta1]
+    # computed: [mu, chi, phi, delta1]
+    # mu fixed at 0 mode / constraint
+    extras:
+      n_hat: REQUIRED
+      incidence: null
+      emergence: null

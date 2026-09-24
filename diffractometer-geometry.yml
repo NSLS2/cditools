@@ -1,0 +1,79 @@
+# CDI 7-circle diffractometer prototype.
+# Schema reference: docs/source/reference/declarative_geometry_schema.md
+# How-to:           docs/source/howto/custom_geometry.md
+
+ad_hoc_diffractometer_geometry:
+  schema_revision: 1
+
+name: cdi-geometry
+
+documentation: |
+  CDI 7-circle diffractometer prototype.
+
+  This is a working first model of the CDI stack from beamline notes.
+  The top two sample rotations are fixed at zero in the initial mode.
+
+
+  The solver has special handling for an Eulerian inner pair named
+  ``chi`` and ``phi``.  These names are solver-facing aliases for the
+  two lower CDI sample stages noted as omega/chi during beamline
+  discussion:
+
+      chi  -> gon.sam.c_lg.lrx / omega1 in earlier notes
+      phi  -> gon.sam.c_lg.lrz / chi1 in earlier notes
+
+
+  Basis used here: vertical=+Y, longitudinal=+Z, transverse=+X.
+
+
+  Stack (floor first):
+      mu                  : vertical
+        --> chi           : longitudinal
+              --> phi     : transverse
+                    --> omega2 : longitudinal, fixed at 0 in fixed_alpha
+                          --> chi2 : transverse, fixed at 0 in fixed_alpha
+      gamma1              : transverse detector axis, fixed at 0 in fixed_alpha
+        --> delta1        : vertical detector axis
+
+basis:
+  vertical: [0.0, 1.0, 0.0]
+  longitudinal: [0.0, 0.0, 1.0]
+  transverse: [1.0, 0.0, 0.0]
+
+stages:
+  # TODO - check +/- signs
+  - { name: mu, axis: +vertical, parent: null, role: sample } # Ry gon.sam.ry
+  - { name: chi, axis: +longitudinal, parent: mu, role: sample } # Rx gon.sam.c_lg.lrx / omega1
+  # omega about the transverse axis
+  # phi is about the vertical when everything else is at 0, but would change as everythhing else moves
+  # we do not have a phi installed, so it should be zero or not included in the geometry.
+  # phi is on top of omega and chi and mu
+  - { name: phi, axis: +transverse, parent: chi, role: sample } # Rz gon.sam.c_lg.lrz / chi1
+
+  # do not need to worry about second omega and chi; assume they are fixed
+  # we have double omega and double chi installed, but do not need to incorporate them right now
+  - { name: omega2, axis: +longitudinal, parent: phi, role: sample } # Rx gon.sam.c_sm.lrx
+  - { name: chi2, axis: +transverse, parent: omega2, role: sample } # Rz gon.sam.c_sm.lrz
+  - { name: gamma1, axis: +transverse, parent: null, role: detector }
+  - { name: delta1, axis: +vertical, parent: gamma1, role: detector }
+    # - {name: gamma2, axis: +transverse, parent: null, role: detector }
+    # - {name: delta2, axis: +vertical, parent: gamma2, role: detector }
+
+# 7 real axes, so N - 3 = 4 constraints are needed for a unique forward solve.
+modes:
+  fixed_alpha:
+    default: true
+    constraints:
+      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: phi, value: 0.0 }
+      - { type: reference, name: incidence, value: 5.0 } # this will be user provided, 5.0 is just a placeholder
+      # - { type: detector, stage: gamma1, value: 0.0 }
+    computed:
+      [mu, chi, gamma1, delta1]
+    # computed: [mu, chi, phi, delta1]
+    # mu fixed at 0 mode / constraint
+    extras:
+      n_hat: REQUIRED
+      incidence: null
+      emergence: null

@@ -1,6 +1,6 @@
 [workspace]
 channels = ["conda-forge"]
-platforms = [{platform = "linux-64", glibc = "2.17"}, "osx-arm64", "linux-64"]
+platforms = [{platform = "linux-64", glibc = "2.17"}, "osx-arm64"]
 preview = ["pixi-build"]
 
 
@@ -19,7 +19,6 @@ ignore-pypi-mapping = false  # Enable automatic PyPI-to-conda mapping
 ophyd = "*"
 h5py = "*"
 xrayutilities = ">=1.7.12,<2"
-hklpy2 = "*"
 
 [pypi-dependencies]
 cditools = { path = ".", editable = true }
@@ -28,6 +27,7 @@ hklpy2-solvers = ">=0.3.9, <0.4"
 
 [target.linux-64.dependencies]
 ophyd-async = { version = ">=0.21", extras = ["ca"] }
+hklpy2 = "*"
 hkl = "*"
 
 # It is necessary to split ophyd-async to pypi on mac because

@@ -32,7 +32,14 @@ except ValueError:  # geometry already registered
     contextlib.suppress(ValueError)
 
 # Create diffractometer
-diffr = hklpy2.creator(name="cdi-geometry", geometry="cdi-geometry", solver="ad_hoc")
+# mu = Cpt(EpicsMotor, "Gon:1-Ax:Ry}Mtr", kind=NORMAL_HINTED)
+# chi = Cpt(EpicsMotor, "Gon:1-Ax:Rx2}Mtr", kind=NORMAL_HINTED)
+# phi = Cpt(EpicsMotor, "Gon:1-Ax:Rz2}Mtr", kind=NORMAL_HINTED)
+# omega2 = Cpt(EpicsMotor, "Gon:1-Ax:Rx1}Mtr", kind=NORMAL_HINTED)
+# chi2 = Cpt(EpicsMotor, "Gon:1-Ax:Rz1}Mtr", kind=NORMAL_HINTED)
+diffr = hklpy2.creator(
+    name="cdi-geometry", geometry="cdi-geometry", solver="ad_hoc", prefix="Gon:1-Ax:"
+)
 
 # Add Sample
 hklpy2.user.set_diffractometer(diffr)
@@ -87,7 +94,7 @@ diffr.core.constraints["chi"].limits = (0, 180)
 diffr.core.constraints["omega2"].limits = (180, 0)
 
 # Set surface normal
-diffr.core.extras = {"n_hat": (1, 1, 1)}
+diffr.core.extras = {"n_hat": (1, 1, 1)}  # pyright: ignore[reportAttributeAccessIssue]
 
 # Get solutions
 hkl_or = (4, 0, 0)

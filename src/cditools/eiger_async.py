@@ -554,7 +554,9 @@ class EigerAcquireLogic(DetectorAcquireLogic):
         self._cached_image_mode = None
 
         if self._cached_acquire_state is not None:
-            await self.driver.acquire.set(self._cached_acquire_state)
+            # TODO - this timeout fixed a connection issue with the eiger
+            # but the root cause is unknown and should be investigated.
+            await self.driver.acquire.set(self._cached_acquire_state, timeout=60)
         self._cached_acquire_state = None
 
 

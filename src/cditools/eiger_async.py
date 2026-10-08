@@ -530,16 +530,20 @@ class EigerAcquireLogic(DetectorAcquireLogic):
     # We are intentionally not calling the base class implementation
     async def ensure_ready(self):
         detector_state = await self.driver.detector_state.get_value()
+        # print("inside ensure_ready")
+        # print(self._cached_acquire_state)
         self._cached_acquire_state = detector_state == ADState.ACQUIRE
         self._cached_trigger_mode = await self.driver.trigger_mode.get_value()
         self._cached_image_mode = await self.driver.image_mode.get_value()
 
         self._rolling_image_counter = 0
+        # print(self._cached_acquire_state)
         await stop_busy_record(self.driver.acquire)
 
     async def ensure_stopped(self):
         await stop_busy_record(self.driver.acquire)
-
+        # print("inside ensure_stopped")
+        # print(self._cached_acquire_state)
         coros = []
         if self._cached_trigger_mode is not None:
             coros.append(self.driver.trigger_mode.set(self._cached_trigger_mode))
@@ -554,7 +558,7 @@ class EigerAcquireLogic(DetectorAcquireLogic):
         self._cached_image_mode = None
 
         if self._cached_acquire_state is not None:
-            await self.driver.acquire.set(self._cached_acquire_state)
+            await self.driver.acquire.set(self._cached_acquire_state, timeout=60)
         self._cached_acquire_state = None
 
 

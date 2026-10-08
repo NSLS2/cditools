@@ -22,14 +22,19 @@ xrayutilities = ">=1.7.12,<2"
 
 [pypi-dependencies]
 cditools = { path = ".", editable = true }
+ad_hoc_diffractometer = "*"
+hklpy2-solvers = ">=0.3.9, <0.4"
 
 [target.linux-64.dependencies]
 ophyd-async = { version = ">=0.21", extras = ["ca"] }
+hklpy2 = "*"
+hkl = "*"
 
 # It is necessary to split ophyd-async to pypi on mac because
 # epicscorelibs is not available for osx-arm64 on conda-forge
 [target.osx-arm64.pypi-dependencies]
 ophyd-async = { version = ">=0.21", extras = ["ca"] }
+hklpy2 = ">=1.0.0, <2"
 
 [feature.dev.dependencies]
 entrypoints = ">=0.4,<0.5"

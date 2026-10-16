@@ -33,7 +33,3 @@ class TDMSTower(Device):
     def __init__(self, *, num, **kwargs):
         self._num = num
         super().__init__(**kwargs)
-
-
-T1 = TDMSTower(name="T1", num=1)
-T2 = TDMSTower(name="T2", num=2)

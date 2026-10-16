@@ -35,6 +35,7 @@ documentation: |
       gamma1              : transverse detector axis, fixed at 0 in fixed_alpha
         --> delta1        : vertical detector axis
 
+# [x, y, z]
 basis:
   vertical: [0.0, 1.0, 0.0]
   longitudinal: [0.0, 0.0, 1.0]
@@ -54,8 +55,8 @@ stages:
   # we have double omega and double chi installed, but do not need to incorporate them right now
   - { name: omega2, axis: +longitudinal, parent: phi, role: sample } # Rx gon.sam.c_sm.lrx
   - { name: chi2, axis: +transverse, parent: omega2, role: sample } # Rz gon.sam.c_sm.lrz
-  - { name: gamma1, axis: +transverse, parent: null, role: detector }
-  - { name: delta1, axis: +vertical, parent: gamma1, role: detector }
+  - { name: gamma, axis: +transverse, parent: null, role: detector }
+  - { name: delta, axis: +vertical, parent: gamma, role: detector }
     # - {name: gamma2, axis: +transverse, parent: null, role: detector }
     # - {name: delta2, axis: +vertical, parent: gamma2, role: detector }
 
@@ -65,11 +66,11 @@ modes:
     default: true
     constraints:
       - { type: sample, stage: chi2, value: 0.0 }
-      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: chi, value: 0.0 }
       - { type: sample, stage: phi, value: 0.0 }
       - { type: reference, name: incidence, value: 5.0 } # this will be user provided, 5.0 is just a placeholder
       # - { type: detector, stage: gamma1, value: 0.0 }
-    computed: [mu, chi, gamma1, delta1]
+    computed: [mu, omega2, gamma, delta]
     # computed: [mu, chi, phi, delta1]
     # mu fixed at 0 mode / constraint
     extras:

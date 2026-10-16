@@ -6,7 +6,7 @@ from ad_hoc_diffractometer import register_geometry_file
 from hklpy2.diffract import DiffractometerBase
 from hklpy2.incident import WavelengthXray
 
-from cditools.motors import Energy, GON
+from cditools.motors import Energy
 
 CUSTOM_GEOMETRY_YAML_PATH = Path(__file__).resolve().parent / "config/cdi-geometry.yml"
 
@@ -33,6 +33,7 @@ class PseudoMonochromator(WavelengthXray):
 
     def _energy_changed(self, value: float, **_kwargs: Any) -> None:
         self.energy.put(value)
+
 
 # class CDIDiffractometer(DiffractometerBase):
 
@@ -64,9 +65,9 @@ class PseudoMonochromator(WavelengthXray):
 
 # def initialize_hkl_diffractometer(name: str = "cdi") -> DiffractometerBase:
 #     # initialize hklpy2 diffractometer
-#     cdi = hklpy2.creator(prefix = "XF:09IDC-OP:1{", 
-#                          name=name, 
-#                          geometry=register_geometry_file(CUSTOM_GEOMETRY_YAML_PATH), 
+#     cdi = hklpy2.creator(prefix = "XF:09IDC-OP:1{",
+#                          name=name,
+#                          geometry=register_geometry_file(CUSTOM_GEOMETRY_YAML_PATH),
 #                          solver='ad_hoc',
 #                          reals={
 #                              "mu": ,
@@ -80,13 +81,13 @@ class PseudoMonochromator(WavelengthXray):
 
 #     # configure energy in keV
 #     cdi.beam.energy.put(energy_pseudo.energy)
-    
-    
+
+
 #     return cdi
 
 from typing import ClassVar
 
-from ophyd import Component as Cpt
+from ophyd import Component as Cpt, FormattedComponent as FCpt
 from ophyd import EpicsMotor
 from ophyd import Kind
 from ophyd import SoftPositioner
@@ -99,37 +100,41 @@ NORMAL_HINTED = Kind.hinted | Kind.normal
 
 
 class CDIDiffractometer(DiffractometerBase):
-
     # Pseudo-space axes, in order expected by hkl_soleil E4CV, engine="hkl"
-    h = Cpt(Hklpy2PseudoAxis, "", kind=NORMAL_HINTED)
-    k = Cpt(Hklpy2PseudoAxis, "", kind=NORMAL_HINTED)
-    l = Cpt(Hklpy2PseudoAxis, "", kind=NORMAL_HINTED)
+    # h = Cpt(Hklpy2PseudoAxis, "")
+    # k = Cpt(Hklpy2PseudoAxis, "")
+    # l = Cpt(Hklpy2PseudoAxis, "")
 
     # Real-space axes, in our own order..
     # Use different names than the solver for some axes
-    mu = Cpt(EpicsMotor, "Gon:1-Ax:Ry}Mtr", kind=NORMAL_HINTED)
-    chi = Cpt(EpicsMotor, "Gon:1-Ax:Rx2}Mtr", kind=NORMAL_HINTED)
-    phi = Cpt(EpicsMotor, "Gon:1-Ax:Rz2}Mtr", kind=NORMAL_HINTED)
-    omega2 = Cpt(EpicsMotor, "Gon:1-Ax:Rx1}Mtr", kind=NORMAL_HINTED)
-    chi2 = Cpt(EpicsMotor, "Gon:1-Ax:Rz1}Mtr", kind=NORMAL_HINTED)
-    gamma1 = Cpt(EpicsMotor, "", kind=NORMAL_HINTED)
-    delta1 = Cpt(EpicsMotor, "", kind=NORMAL_HINTED)
+    mu = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Ry}Mtr")
+    chi = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rx2}Mtr")
+    phi = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rz2}Mtr")
+    omega2 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rx1}Mtr")
+    chi2 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rz1}Mtr")
+    gamma1 = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AX}}MTR:RBV-RB0")
+    delta1 = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AY}}MTR:RBV-RB0")
 
     # Just the axes in expected order by hkl_soleil E4CV.
     _pseudo: ClassVar[list[str]] = ["h", "k", "l"]
-    _real: ClassVar[list[str]] = ["mu", "chi", "phi", "omega2", "chi2", "gamma1", "delta1"]
+    _real: ClassVar[list[str]] = [
+        "mu",
+        "chi",
+        "phi",
+        "omega2",
+        "chi2",
+        "gamma1",
+        "delta1",
+    ]
 
-
-    def __init__(self, **kwargs):
-        # kwargs["prefix"] = prefix
+    def __init__(self, prefix:str = "XF:09IDC-", solver: str = "ad_hoc", name: str = "CDI", *args, **kwargs):
         super().__init__(
-            prefix="XF:09IDC-OP:1{",
-            solver="ad_hoc",
-            name='cdi',
+            prefix=prefix,
+            solver=solver,
+            name=name,
             geometry=register_geometry_file(CUSTOM_GEOMETRY_YAML_PATH),
             pseudos=["h", "k", "l"],
             reals=["mu", "chi", "phi", "omega2", "chi2", "gamma1", "delta1"],
+            *args,
             **kwargs,
         )
-
-

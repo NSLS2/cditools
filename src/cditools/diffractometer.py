@@ -26,6 +26,10 @@ from ophyd import FormattedComponent as FCpt
 Extras
 - figure out how to adjust tolerance of incidence
 - set energy/wavelength with ophyd object
+
+This file if run should run things in simulated mode.
+The notebooks/diffractometer.ipynb has very similar code
+that will attempt to connect to real IOCs
 """
 
 # Register geometry
@@ -50,31 +54,20 @@ omega2 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rx1}Mtr")
 chi2 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rz1}Mtr")
 gamma1 = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AX}}MTR:RBV-RB0")
 delta1 = FCpt(EpicsMotor, "ES:1{{TDMS:A{self._num}-Ax:AY}}MTR:RBV-RB0")
-real_gon_angles = {
-    "mu": "OP:1{Gon:1-Ax:Ry}Mtr",
-    "chi": "OP:1{Gon:1-Ax:Rx2}Mtr",
-    "phi": "OP:1{Gon:1-Ax:Rz2}Mtr",
-    "omega2": "OP:1{Gon:1-Ax:Rx1}Mtr",
-    "chi2": "OP:1{Gon:1-Ax:Rz1}Mtr",
-}
-real_tdms1_angles = {
-    "gamma1": "ES:1{TDMS:T1-Ax:AX}MTR:RBV-RB0",
-    "delta1": "ES:1{TDMS:A1-Ax:AY}MTR:RBV-RB0",
-}
-real_tdms2_angles = {
-    "gamma1": "ES:1{TDMS:T2-Ax:AX}MTR:RBV-RB0",
-    "delta1": "ES:1{TDMS:A2-Ax:AY}MTR:RBV-RB0",
-}
+
+# TODO - check these angle <-> PV names
+real_gon_angles = {"mu": "", "chi": "", "phi": "", "omega2": "", "chi2": ""}
+real_tdms1_angles = {"gamma1": "", "delta1": ""}
+real_tdms2_angles = {"gamma1": "", "delta1": ""}
 _real_seq = ["mu", "chi", "phi", "omega2", "chi2", "gamma1", "delta1"]
 
-#
 # Create diffractometer
 diffr1 = hklpy2.creator(
     # name="cdi-geometry", geometry="cdi-geometry", solver="ad_hoc", prefix="Gon:1-Ax:"
     name="cdi-geometry",
     geometry="cdi-geometry",
     solver="ad_hoc",
-    prefix="XF:09IDC-",
+    prefix="",
     reals=real_gon_angles | real_tdms1_angles,
     _real=_real_seq,
 )
@@ -84,7 +77,7 @@ diffr2 = hklpy2.creator(
     name="cdi-geometry",
     geometry="cdi-geometry",
     solver="ad_hoc",
-    prefix="XF:09IDC-",
+    prefix="",
     reals=real_gon_angles | real_tdms2_angles,
     _real=_real_seq,
 )
@@ -136,7 +129,7 @@ except hklpy2.blocks.reflection.ReflectionError:
 # wh()
 
 # Calculate UB matrix
-hklpy2.user.calc_UB(r1, r2)
+ub_mat = hklpy2.user.calc_UB(r1, r2)
 
 # Add constraints
 # TODO - add constraints based on TDMS location

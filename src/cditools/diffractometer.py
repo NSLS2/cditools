@@ -50,6 +50,8 @@ omega2 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rx1}Mtr")
 chi2 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rz1}Mtr")
 gamma1 = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AX}}MTR:RBV-RB0")
 delta1 = FCpt(EpicsMotor, "ES:1{{TDMS:A{self._num}-Ax:AY}}MTR:RBV-RB0")
+
+# TODO - check these angle <-> PV names
 real_gon_angles = {
     "mu": "OP:1{Gon:1-Ax:Ry}Mtr",
     "chi": "OP:1{Gon:1-Ax:Rx2}Mtr",
@@ -136,7 +138,7 @@ except hklpy2.blocks.reflection.ReflectionError:
 # wh()
 
 # Calculate UB matrix
-hklpy2.user.calc_UB(r1, r2)
+ub_mat = hklpy2.user.calc_UB(r1, r2)
 
 # Add constraints
 # TODO - add constraints based on TDMS location

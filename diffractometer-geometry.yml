@@ -32,8 +32,8 @@ documentation: |
               --> phi     : transverse
                     --> omega2 : longitudinal, fixed at 0 in fixed_alpha
                           --> chi2 : transverse, fixed at 0 in fixed_alpha
-      gamma1              : transverse detector axis, fixed at 0 in fixed_alpha
-        --> delta1        : vertical detector axis
+      gamma              : rotation about x-axis (vertical in motion)
+        --> delta        : rotation about y-axis (horizontal in motion)
 
 # [x, y, z]
 basis:
@@ -44,36 +44,38 @@ basis:
 stages:
   # TODO - check +/- signs
   - { name: mu, axis: +vertical, parent: null, role: sample } # Ry gon.sam.ry
-  - { name: chi, axis: +longitudinal, parent: mu, role: sample } # Rx gon.sam.c_lg.lrx / omega1
+  - { name: omega1, axis: +transverse, parent: mu, role: sample } # Rx gon.sam.c_lg.lrx / omega1
   # omega about the transverse axis
   # phi is about the vertical when everything else is at 0, but would change as everythhing else moves
   # we do not have a phi installed, so it should be zero or not included in the geometry.
   # phi is on top of omega and chi and mu
-  - { name: phi, axis: +transverse, parent: chi, role: sample } # Rz gon.sam.c_lg.lrz / chi1
+  - { name: chi1, axis: +longitudinal, parent: omega1, role: sample } # Rz gon.sam.c_lg.lrz / chi1
 
   # do not need to worry about second omega and chi; assume they are fixed
   # we have double omega and double chi installed, but do not need to incorporate them right now
-  - { name: omega2, axis: +longitudinal, parent: phi, role: sample } # Rx gon.sam.c_sm.lrx
-  - { name: chi2, axis: +transverse, parent: omega2, role: sample } # Rz gon.sam.c_sm.lrz
-  - { name: gamma, axis: +transverse, parent: null, role: detector }
-  - { name: delta, axis: +vertical, parent: gamma, role: detector }
-    # - {name: gamma2, axis: +transverse, parent: null, role: detector }
-    # - {name: delta2, axis: +vertical, parent: gamma2, role: detector }
+  - { name: omega2, axis: +transverse, parent: chi1, role: sample } # Rx gon.sam.c_sm.lrx
+  - { name: chi2, axis: +longitudinal, parent: omega2, role: sample } # Rz gon.sam.c_sm.lrz
+  - { name: gamma, axis: +transverse, parent: null, role: detector } # Rx tdms.ax
+  - { name: delta, axis: +vertical, parent: gamma, role: detector } # Ry tdms.ay
 
 # 7 real axes, so N - 3 = 4 constraints are needed for a unique forward solve.
 modes:
   fixed_incidence:
+    constraints:
+      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: chi1, value: 0.0 }
+      # - { type: detector, stage: gamma, value: 0.0 }
+      - { type: reference, name: incidence, value: 5.0 }
+    computed: [mu, omega1, delta, gamma]
+    extras:
+      n_hat: REQUIRED
+      incidence: REQUIRED
+
+  fixed_chi1_chi2_omega2:
     default: true
     constraints:
       - { type: sample, stage: chi2, value: 0.0 }
-      - { type: sample, stage: chi, value: 0.0 }
-      - { type: sample, stage: phi, value: 0.0 }
-      - { type: reference, name: incidence, value: 5.0 } # this will be user provided, 5.0 is just a placeholder
-      # - { type: detector, stage: gamma1, value: 0.0 }
-    computed: [mu, omega2, gamma, delta]
-    # computed: [mu, chi, phi, delta1]
-    # mu fixed at 0 mode / constraint
-    extras:
-      n_hat: REQUIRED
-      incidence: null
-      emergence: null
+      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: chi1, value: 0.0 }
+    computed: [mu, omega1, delta, gamma]

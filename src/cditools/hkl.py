@@ -100,41 +100,23 @@ NORMAL_HINTED = Kind.hinted | Kind.normal
 
 
 class CDIDiffractometer(DiffractometerBase):
-    # Pseudo-space axes, in order expected by hkl_soleil E4CV, engine="hkl"
-    # h = Cpt(Hklpy2PseudoAxis, "")
-    # k = Cpt(Hklpy2PseudoAxis, "")
-    # l = Cpt(Hklpy2PseudoAxis, "")
-
-    # Real-space axes, in our own order..
-    # Use different names than the solver for some axes
     mu = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Ry}Mtr")
-    chi = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rx2}Mtr")
-    phi = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rz2}Mtr")
+    omega1 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rx2}Mtr")
+    chi1 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rz2}Mtr")
     omega2 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rx1}Mtr")
     chi2 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rz1}Mtr")
-    gamma1 = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AX}}MTR:RBV-RB0")
-    delta1 = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AY}}MTR:RBV-RB0")
+    gamma = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AX}}MTR:RBV-RB0")
+    delta = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AY}}MTR:RBV-RB0")
 
-    # Just the axes in expected order by hkl_soleil E4CV.
-    _pseudo: ClassVar[list[str]] = ["h", "k", "l"]
-    _real: ClassVar[list[str]] = [
-        "mu",
-        "chi",
-        "phi",
-        "omega2",
-        "chi2",
-        "gamma1",
-        "delta1",
-    ]
-
-    def __init__(self, prefix:str = "XF:09IDC-", solver: str = "ad_hoc", name: str = "CDI", *args, **kwargs):
+    def __init__(self, det_num: int, prefix:str = "XF:09IDC-", solver: str = "ad_hoc", name: str = "CDI", *args, **kwargs):
+        self._num = det_num
         super().__init__(
             prefix=prefix,
             solver=solver,
             name=name,
             geometry=register_geometry_file(CUSTOM_GEOMETRY_YAML_PATH),
             pseudos=["h", "k", "l"],
-            reals=["mu", "chi", "phi", "omega2", "chi2", "gamma1", "delta1"],
+            reals=["mu", "chi1", "omega1", "omega2", "chi2", "gamma", "delta"],
             *args,
             **kwargs,
         )

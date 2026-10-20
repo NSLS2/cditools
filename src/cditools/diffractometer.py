@@ -52,14 +52,14 @@ chi = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rx2}Mtr")
 phi = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rz2}Mtr")
 omega2 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rx1}Mtr")
 chi2 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rz1}Mtr")
-gamma1 = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AX}}MTR:RBV-RB0")
-delta1 = FCpt(EpicsMotor, "ES:1{{TDMS:A{self._num}-Ax:AY}}MTR:RBV-RB0")
+gamma = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AX}}MTR:RBV-RB0")
+delta = FCpt(EpicsMotor, "ES:1{{TDMS:A{self._num}-Ax:AY}}MTR:RBV-RB0")
 
 # TODO - check these angle <-> PV names
-real_gon_angles = {"mu": "", "chi": "", "phi": "", "omega2": "", "chi2": ""}
-real_tdms1_angles = {"gamma1": "", "delta1": ""}
-real_tdms2_angles = {"gamma1": "", "delta1": ""}
-_real_seq = ["mu", "chi", "phi", "omega2", "chi2", "gamma1", "delta1"]
+real_gon_angles = {"mu": None, "omega": None, "chi": None, "omega2": None, "chi2": None}
+real_tdms1_angles = {"gamma": None, "delta": None}
+real_tdms2_angles = {"gamma": None, "delta": None}
+_real_seq = ["mu", "omega", "chi", "omega2", "chi2", "gamma", "delta"]
 
 # Create diffractometer
 diffr1 = hklpy2.creator(

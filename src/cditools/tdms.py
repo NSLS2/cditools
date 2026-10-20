@@ -7,11 +7,12 @@ from ophyd.pv_positioner import PVPositioner
 from ophyd.signal import EpicsSignal, EpicsSignalRO
 
 
+# TODO - remove MTR: from prefix
 class TDMSAxis(PVPositioner):
-    setpoint = Cpt(EpicsSignal, "MTR:VAL-SP")
-    readback = Cpt(EpicsSignalRO, "MTR:RBV-RB0", kind="hinted")
-    actuate = Cpt(EpicsSignal, "MTR:GO-CMD", kind="omitted")
-    done = Cpt(EpicsSignalRO, "MTR:INPOS-STS", kind="omitted")
+    setpoint = Cpt(EpicsSignal, "VAL-SP")
+    readback = Cpt(EpicsSignalRO, "RBV-RB0", kind="hinted")
+    actuate = Cpt(EpicsSignal, "GO-CMD", kind="omitted")
+    done = Cpt(EpicsSignalRO, "INPOS-STS", kind="omitted")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -19,11 +20,11 @@ class TDMSAxis(PVPositioner):
 
 
 class TDMSTower(Device):
-    tx = FCpt(TDMSAxis, "XF:09IDC-ES:1{{TDMS:T{self._num}-Ax:TX}}")
-    ty = FCpt(TDMSAxis, "XF:09IDC-ES:1{{TDMS:T{self._num}-Ax:TY}}")
-    tz = FCpt(TDMSAxis, "XF:09IDC-ES:1{{TDMS:A{self._num}-Ax:TZ}}")
+    tx = FCpt(TDMSAxis, "XF:09IDC-ES:1{{TDMS:T{self._num}-Ax:TX}}MTR:")
+    ty = FCpt(TDMSAxis, "XF:09IDC-ES:1{{TDMS:T{self._num}-Ax:TY}}MTR:")
+    tz = FCpt(TDMSAxis, "XF:09IDC-ES:1{{TDMS:A{self._num}-Ax:TZ}}MTR:")
 
-    camay = FCpt(TDMSAxis, "XF:09IDC-ES:1{{TDMS:T{self._num}-Ax:CAM_AY}}")
+    camay = FCpt(TDMSAxis, "XF:09IDC-ES:1{{TDMS:T{self._num}-Ax:CAM_AY}}MTR:")
 
     # TODO replace with TDMSAxis when motions get commissioned
     ax = FCpt(EpicsSignalRO, "XF:09IDC-ES:1{{TDMS:T{self._num}-Ax:AX}}MTR:RBV-RB0")

@@ -31,7 +31,10 @@ dependencies = [
   "ophyd",
   "ophyd-async[ca] >=0.21",
   "h5py",
-  "xrayutilities>=1.7.12,<2"
+  "xrayutilities>=1.7.12,<2",
+  "hklpy2",
+  "hkl",
+  "ad_hoc_diffractometer"
 ]
 
 [dependency-groups]

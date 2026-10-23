@@ -33,7 +33,7 @@ dependencies = [
   "h5py",
   "xrayutilities>=1.7.12,<2",
   "hklpy2",
-  "hkl",
+  "hklpy2-solvers",
   "ad_hoc_diffractometer"
 ]
 

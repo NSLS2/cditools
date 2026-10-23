@@ -5,8 +5,6 @@ from collections.abc import Callable
 import hklpy2
 from hklpy2.diffract import DiffractometerBase
 
-from cditools.motors import Energy
-
 PSEUDOS = ["h", "k", "l"]
 REALS = ["mu", "omega1", "chi1", "omega2", "chi2", "gamma1", "delta1"]
 hklpy2.creator()
@@ -23,13 +21,8 @@ class CDIDiffractometer(DiffractometerBase):
         reals: list[str] = REALS,
         reals_units: str | None = None,
         forward_solution_function: Callable | None = None,
-        energy: Energy | None = None,
         **kwargs,
     ):
-        self._energy = energy
-        if self._energy:
-            self.beam.energy = self._energy.energy
-
         super().__init__(
             prefix=prefix,
             solver=solver,

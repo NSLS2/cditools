@@ -65,6 +65,9 @@ Homepage = "https://github.com/nsls2/cditools"
 Discussions = "https://github.com/nsls2/cditools/discussions"
 Changelog = "https://github.com/nsls2/cditools/releases"
 
+[project.entry-points."hklpy2.solver"]
+cdi_ad_hoc = "cditools.hkl_solver:CDIAdHocSolver"
+
 [project.license]
 file = "LICENSE"
 

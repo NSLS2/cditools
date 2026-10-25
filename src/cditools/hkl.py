@@ -100,16 +100,34 @@ NORMAL_HINTED = Kind.hinted | Kind.normal
 
 
 class CDIDiffractometer(DiffractometerBase):
+    # Pseudo-space axes, in order expected by hkl_soleil E4CV, engine="hkl"
+    # h = Cpt(Hklpy2PseudoAxis, "")
+    # k = Cpt(Hklpy2PseudoAxis, "")
+    # l = Cpt(Hklpy2PseudoAxis, "")
+
+    # Real-space axes, in our own order..
+    # Use different names than the solver for some axes
     mu = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Ry}Mtr")
-    omega1 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rx2}Mtr")
-    chi1 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rz2}Mtr")
+    chi = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rx2}Mtr")
+    phi = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rz2}Mtr")
     omega2 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rx1}Mtr")
     chi2 = Cpt(EpicsMotor, "OP:1{Gon:1-Ax:Rz1}Mtr")
-    gamma = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AX}}MTR:RBV-RB0")
-    delta = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AY}}MTR:RBV-RB0")
+    gamma1 = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AX}}MTR:RBV-RB0")
+    delta1 = FCpt(EpicsMotor, "ES:1{{TDMS:T{self._num}-Ax:AY}}MTR:RBV-RB0")
 
-    def __init__(self, det_num: int, prefix:str = "XF:09IDC-", solver: str = "ad_hoc", name: str = "CDI", *args, **kwargs):
-        self._num = det_num
+    # Just the axes in expected order by hkl_soleil E4CV.
+    _pseudo: ClassVar[list[str]] = ["h", "k", "l"]
+    _real: ClassVar[list[str]] = [
+        "mu",
+        "chi",
+        "phi",
+        "omega2",
+        "chi2",
+        "gamma1",
+        "delta1",
+    ]
+
+    def __init__(self, prefix:str = "XF:09IDC-", solver: str = "ad_hoc", name: str = "CDI", *args, **kwargs):
         super().__init__(
             prefix=prefix,
             solver=solver,

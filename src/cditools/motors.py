@@ -85,6 +85,7 @@ class DCMBase(Device):
     v = Cpt(EpicsMotor, "Mono:HDCM-Ax:TY}Mtr")
 
 
+# TODO - look at hklpy2.incident.WavelengthXRay
 class Energy(PseudoPositioner):
     bragg = Cpt(EpicsMotor, "Mono:HDCM-Ax:Bragg}Mtr")
     cgap = Cpt(EpicsMotor, "Mono:HDCM-Ax:HG}Mtr")

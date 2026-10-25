@@ -61,31 +61,21 @@ stages:
 # 7 real axes, so N - 3 = 4 constraints are needed for a unique forward solve.
 modes:
   fixed_incidence:
-    default: true
     constraints:
       - { type: sample, stage: chi2, value: 0.0 }
       - { type: sample, stage: omega2, value: 0.0 }
-      - { type: sample, stage: omega1, value: 0.0 }
-      - { type: sample, stage: gamma, value: 0.47 }
+      - { type: sample, stage: chi1, value: 0.0 }
       # - { type: detector, stage: gamma, value: 0.0 }
-      - { type: reference, name: incidence, value: 3 }
-    computed: [mu, delta, chi1]
+      - { type: reference, name: incidence, value: 5.0 }
+    computed: [mu, omega1, delta, gamma]
     extras:
       n_hat: REQUIRED
       incidence: REQUIRED
 
   fixed_chi1_chi2_omega2:
+    default: true
     constraints:
       - { type: sample, stage: chi2, value: 0.0 }
       - { type: sample, stage: omega2, value: 0.0 }
       - { type: sample, stage: chi1, value: 0.0 }
     computed: [mu, omega1, delta, gamma]
-
-  fixed_gamma_chi2_omega2:
-    constraints:
-      - { type: sample, stage: chi2, value: 0.0 }
-      - { type: sample, stage: omega2, value: 0.0 }
-      - { type: detector, stage: gamma, value: 0.0 }
-      - { type: sample, stage: omega1, value: 0.0 }
-    computed: [mu, chi1, delta]
-

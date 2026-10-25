@@ -30,6 +30,8 @@ ophyd-async = { version = ">=0.21", extras = ["ca"] }
 hklpy2 = "*"
 hkl = "*"
 
+[target.linux-64.pypi-dependencies]
+hklpy2 = { git = "https://github.com/bluesky/hklpy2", rev="main" }
 # It is necessary to split ophyd-async to pypi on mac because
 # epicscorelibs is not available for osx-arm64 on conda-forge
 [target.osx-arm64.pypi-dependencies]

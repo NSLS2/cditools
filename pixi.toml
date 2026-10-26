@@ -1,6 +1,6 @@
 [workspace]
 channels = ["conda-forge"]
-platforms = [{platform = "linux-64", glibc = "2.17"}, "osx-arm64"]
+platforms = [{name = "linux64-glibc228", platform = "linux-64", glibc = "2.28"}, "osx-arm64"]
 preview = ["pixi-build"]
 
 
@@ -46,6 +46,7 @@ pre-commit = ">=4.6.1,<5"
 ipython = ">=9.15.0,<10"
 ruff = ">=0.16.0,<0.17"
 pyright = ">=1.1.411,<2"
+nodejs = ">=22.23.4,<23"
 twine = ">=7.0.0,<8"
 
 [feature.dev.tasks]

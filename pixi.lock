@@ -13411,6 +13411,9 @@ packages:
   - ophyd-async[ca]>=0.21
   - h5py
   - xrayutilities>=1.7.12,<2
+  - hklpy2
+  - hklpy2-solvers
+  - ad-hoc-diffractometer
   requires_python: '>=3.12'
 - pypi: https://files.pythonhosted.org/packages/0e/fd/aad3337b0d14352589af31719112d25f0f27958547c81ed0dc01301a1b3a/ophyd_async-0.21.1-py3-none-any.whl
   name: ophyd-async

@@ -59,6 +59,8 @@ stages:
   - { name: delta, axis: +vertical, parent: gamma, role: detector } # Ry tdms.ay
 
 # 7 real axes, so N - 3 = 4 constraints are needed for a unique forward solve.
+# TODO - look at using qaz for single detector constraint
+# can be used to specify vertical or horizontal plane scattering
 modes:
   fixed_incidence:
     constraints:

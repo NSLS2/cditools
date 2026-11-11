@@ -202,7 +202,7 @@ class CDIDiffractometer(DiffractometerBase):
                 if val == 0 or val is None:
                     status_str += f"{red_x} {key} not set\n"
                 else:
-                    status_str += f"{green_check} {key}: {val}"
+                    status_str += f"{green_check} {key}: {val}\n"
 
         if all(status.values()):
             status_str += f"\n{green_check} Ready to calculate Bragg peaks"

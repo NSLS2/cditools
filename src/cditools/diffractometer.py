@@ -51,7 +51,7 @@ class CDIDiffractometer(DiffractometerBase):
     >>> diffr.beam.energy.put(energy.energy.readback.get())
 
     2. Add sample:
-    >>> diffr.add_sample(name="gold", a=4.008)
+    >>> diffr.add_sample(name="gold", a=4.08)
 
     `name` and `a` are required parameters. Other optional parameters can be seen
     by inspecting the docstring of add_sample()
@@ -135,9 +135,42 @@ class CDIDiffractometer(DiffractometerBase):
             **kwargs,
         )
 
-    def cahkl_table(self, *reflections: list[hklpy2.user.AxesTuple], digits: int = 4):
+    @property
+    def mode(self) -> str:
+        return self.core.mode
+
+    @mode.setter
+    def mode(self, value: str) -> None:
+        self.core.mode = value
+
+    @property
+    def modes(self) -> list[str]:
+        return self.core.modes
+
+    def cahkl_table(
+        self,
+        *reflections: list[hklpy2.user.AxesTuple],
+        digits: int = 4,
+        all_perms: bool = False,
+    ):
         hklpy2.user.set_diffractometer(self)
-        return hklpy2.user.cahkl_table(*reflections, digits=digits)
+        all_reflections = reflections
+        if all_perms:
+            all_reflections = []
+            negs = [-1, -1, -1]
+            permutations = []
+            for i in range(1 << len(negs)):
+                perm = [
+                    d ** int(xp) for d, xp in zip(negs, format(i, "03b"), strict=False)
+                ]
+                permutations.append(perm)
+            for ref in reflections:
+                for perm in permutations:
+                    # TODO - change ruff formatter to not require strict param
+                    ref_perm = [r * n for r, n in zip(ref, perm, strict=False)]
+                    if ref_perm not in all_reflections:
+                        all_reflections.append(ref_perm)
+        return hklpy2.user.cahkl_table(*all_reflections, digits=digits)
 
     def calc_UB(self):
         """

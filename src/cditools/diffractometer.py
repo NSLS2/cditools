@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 
 import hklpy2
 import hklpy2.user
-from hklpy2.diffract import DiffractometerBase
+from hklpy2.diffract import DiffractometerBase, Sample
 
 PSEUDOS = ["h", "k", "l"]
 REALS = ["mu", "omega1", "chi1", "omega2", "chi2", "gamma1", "delta1"]
@@ -13,8 +12,6 @@ REALS = ["mu", "omega1", "chi1", "omega2", "chi2", "gamma1", "delta1"]
 logger = logging.getLogger(__name__)
 
 
-# TODO - hklpy2.creator() uses this class as a mixin
-# might not need all the init params
 class CDIDiffractometer(DiffractometerBase):
     """This class provides a simplified API for working with hklpy2 diffractometer ophyd objects
     at the CDI beamline using the ad_hoc_diffractometer solver. For more detailed information about
@@ -111,30 +108,6 @@ class CDIDiffractometer(DiffractometerBase):
     the form (h, k, l).
     """
 
-    def __init__(
-        self,
-        prefix: str = "XF:09IDC-",
-        solver: str | None = "ad_hoc",
-        geometry: str | None = "cdi-geometry",
-        solver_kwargs: dict = {},  # noqa: B006
-        pseudos: list[str] = PSEUDOS,
-        reals: list[str] = REALS,
-        reals_units: str | None = None,
-        forward_solution_function: Callable | None = None,
-        **kwargs,
-    ):
-        super().__init__(
-            prefix=prefix,
-            solver=solver,
-            geometry=geometry,
-            solver_kwargs=solver_kwargs,
-            pseudos=pseudos,
-            reals=reals,
-            reals_units=reals_units,
-            forward_solution_function=forward_solution_function,
-            **kwargs,
-        )
-
     @property
     def mode(self) -> str:
         return self.core.mode
@@ -173,22 +146,15 @@ class CDIDiffractometer(DiffractometerBase):
         return hklpy2.user.cahkl_table(*all_reflections, digits=digits)
 
     def calc_UB(self):
-        """
-        A wrapper around core.calc_UB() to simplify the syntax.
-        """
-        if self.sample:
-            return self.core.calc_UB(*self.sample.reflections)
-        e = "Sample is not defined"
-        raise RuntimeError(e)
+        """A wrapper around core.calc_UB() to simplify the syntax."""
+        return self.core.calc_UB(*self.sample.reflections)  # type: ignore[reportOptionalMemberAccess]
 
     def status(self) -> str:
-        """
-        Status method to show what has been configured.
-        """
-        status_str = "Status:\n"
+        """Status method to show what has been configured."""
+        status_str = "Configuration status:\n"
         green_check = "\U00002705"
         red_x = "\u274c"
-        yellow_dash = "\033[33m" + "-" + "\033[0m"
+        yellow_dash = "\033[33m" + "--" + "\033[0m"
 
         status = {
             "geometry": None,
@@ -213,12 +179,13 @@ class CDIDiffractometer(DiffractometerBase):
         # TODO - check if this can be None natively
         if self.beam.energy:
             status["energy"] = self.beam.energy.read()
-            status_str += f"{green_check} energy: f{self.beam.energy.read()}\n"
+            status_str += f"{green_check} energy: {self.beam.energy.get()}\n"
         else:
             status_str += f"{red_x} no energy set"
-        if self.sample:
+        # Sample
+        if self.sample and not self._is_default_sample(self.sample):
             status["sample"] = self.sample.name
-            status_str += f"{green_check} sample: {self.sample.name}\n"
+            status_str += f"{green_check} sample: {self.sample}\n"
             status["reflections"] = self.sample.reflections
             if len(self.sample.reflections) == 0:
                 status_str += f"{red_x} no reflections set\n"
@@ -230,6 +197,7 @@ class CDIDiffractometer(DiffractometerBase):
                 )
         else:
             status_str += f"{red_x} no sample set\n"
+            status_str += f"{red_x} no reflections set (must set sample first)\n"
         status["extras"] = self.core.extras
         if self.core.extras:
             for key, val in self.core.extras.items():
@@ -245,122 +213,23 @@ class CDIDiffractometer(DiffractometerBase):
             and status["extras"]
             and all(v != 0 for v in status["extras"].values())
         ):
-            status_str += f"\n{green_check} Ready to calculate Bragg peaks"
+            status_str += f"\n{green_check} ready to calculate Bragg peaks"
+        else:
+            status_str += f"\n{red_x} cannot calculate Bragg peaks"
 
         print(status_str)  # noqa: T201
 
     def help(self):
         print(CDIDiffractometer.__doc__)  # noqa: T201
 
-    # def forward(self, pseudos: dict, wavelength: float | None = None) -> NamedTuple:
-    #     return super().forward(pseudos, wavelength)
-
-    # @pseudo_position_argument
-    # def forward(self, pseudos: dict, wavelength: float | None = None) -> NamedTuple:
-    #     """Compute real-space coordinates from pseudos (hkl -> angles)."""
-    #     logger.debug("forward: pseudos=%r", pseudos)
-    #     solutions = self._forward(pseudos, wavelength=wavelength)
-    #     return self._forward_solution(self.real_position, solutions)
-
-    # def _forward(self, pseudos: AnyAxesType, wavelength: float | None = None) -> list:
-    #     """
-    #     Compute [{names:reals}] from {names: pseudos} (hkl -> angles).
-
-    #     Delegates to :meth:`SolverBase.forward() <hklpy2.backends.base.SolverBase.forward>`
-    #     which returns all solutions the backend engine can find (one or
-    #     more).  Each solution is then filtered against the active
-    #     :attr:`constraints`; only solutions that satisfy all constraints
-    #     are included in the returned list.
-    #     """
-    #     logger.debug("(%s) forward(): pseudos=%r", self.__class__.__name__, pseudos)
-    #     self._warn_if_ub_stale()
-
-    #     pdict = self.standardize_pseudos(pseudos)
-    #     base_reals = self.diffractometer.real_position._asdict()  # Original values.
-
-    #     self.update_solver(wavelength=wavelength)
-
-    #     # Filter just the solutions that fit the constraints.
-    #     solutions = []
-    #     try:
-    #         # Unit conversions for presets and new values.
-    #         angle_units_solver = self.solver.ANGLE_UNITS
-    #         angle_units_core = self.diffractometer.reals_units
-
-    #         # Get the constant (read-only) axis names for this mode.
-    #         constant_axes = self._constant_axis_names()
-
-    #         # Get presets for current mode.
-    #         mode_presets = self.presets
-
-    #         # Build the presets dict:
-    #         # - For constant axes: use preset value if set, otherwise use current motor position
-    #         # - For written axes: always use current motor position
-    #         solver_reals = {}
-    #         for axis in self.solver.real_axis_names:
-    #             local_axis = self.axes_xref_reversed[axis]
-    #             if axis in constant_axes:
-    #                 if local_axis in mode_presets:
-    #                     solver_reals[axis] = hklpy2.ops.convert_units(
-    #                         mode_presets[local_axis],
-    #                         angle_units_core,
-    #                         angle_units_solver,
-    #                     )
-    #                 else:
-    #                     solver_reals[axis] = hklpy2.ops.convert_units(
-    #                         base_reals[local_axis], angle_units_core, angle_units_solver
-    #                     )
-    #             else:
-    #                 solver_reals[axis] = hklpy2.ops.convert_units(
-    #                     base_reals[local_axis], angle_units_core, angle_units_solver
-    #                 )
-
-    #         self.solver.set_reals(solver_reals)
-    #         for solution in self.solver.forward(self._axes_names_d2s(pdict)):
-    #             reals = base_reals.copy()  # Fresh copy per solution.
-    #             new_reals = self._axes_names_s2d(solution)
-    #             for axis, value in new_reals.items():
-    #                 # Update with converted new value.
-    #                 reals[axis] = hklpy2.ops.convert_units(
-    #                     value, angle_units_solver, angle_units_core
-    #                 )
-    #             # Apply cut-point wrapping before constraint checking.
-    #             # Each axis angle is mapped into [cut_point, cut_point+360)
-    #             # so that limit checks operate on the wrapped representation.
-    #             assert self.constraints is not None
-    #             for name, constraint in self.constraints.items():
-    #                 if name in reals:
-    #                     reals[name] = constraint.apply_cut(reals[name])
-
-    #             if self.constraints.valid(**reals):
-    #                 solutions.append(self.diffractometer.RealPosition(**reals))
-    #             else:
-    #                 # Log which constraint(s) rejected this solution.
-    #                 for name, constraint in self.constraints.items():
-    #                     if not constraint.valid(**reals):
-    #                         logger.info(
-    #                             "Solution discarded: %s=%.4f"
-    #                             " (after cut_point=%.4f wrapping)"
-    #                             " outside limits [%.4f, %.4f]."
-    #                             "  pseudos=%r",
-    #                             name,
-    #                             reals[name],
-    #                             constraint.cut_point,
-    #                             constraint.low_limit,
-    #                             constraint.high_limit,
-    #                             pdict,
-    #                         )
-    #     except hklpy2.ops.NoForwardSolutions as exc:
-    #         logger.info(
-    #             "No forward solutions from solver for pseudos=%r: %s", pdict, exc
-    #         )
-
-    #     return solutions
-
-
-# def add_sample(self, name: str | xu.materials.Material, a: float | None = None, **kwargs) -> Sample:
-#     if isinstance(name, xu.materials.Material):
-#         if a is None:
-#             a = name.a
-#         name = str(name.name)
-#     super().add_sample(name, float(a), **kwargs)
+    def _is_default_sample(self, sample: Sample) -> bool:
+        return (
+            sample.name == "sample"
+            and (sample.lattice.a == sample.lattice.b == sample.lattice.c == 1)
+            and (
+                sample.lattice.alpha
+                == sample.lattice.beta
+                == sample.lattice.gamma
+                == 90.0
+            )
+        )

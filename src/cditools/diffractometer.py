@@ -174,7 +174,7 @@ class CDIDiffractometer(DiffractometerBase):
 
     def calc_UB(self):
         """
-        A wrapper around core.calc_UB() to simplify the syntax easier.
+        A wrapper around core.calc_UB() to simplify the syntax.
         """
         if self.sample:
             return self.core.calc_UB(*self.sample.reflections)
@@ -183,11 +183,12 @@ class CDIDiffractometer(DiffractometerBase):
 
     def status(self) -> str:
         """
-        Status object to show what has been configured.
+        Status method to show what has been configured.
         """
         status_str = "Status:\n"
         green_check = "\U00002705"
         red_x = "\u274c"
+        yellow_dash = "\033[33m" + "-" + "\033[0m"
 
         status = {
             "geometry": None,
@@ -236,8 +237,14 @@ class CDIDiffractometer(DiffractometerBase):
                     status_str += f"{red_x} {key} not set\n"
                 else:
                     status_str += f"{green_check} {key}: {val}\n"
+        else:
+            status_str += f"{yellow_dash} no extras"
 
-        if all(status.values()):
+        if (
+            all(status.values())
+            and status["extras"]
+            and all(v != 0 for v in status["extras"].values())
+        ):
             status_str += f"\n{green_check} Ready to calculate Bragg peaks"
 
         print(status_str)  # noqa: T201

@@ -61,12 +61,12 @@ class CDIDiffractometer(DiffractometerBase):
             pseudos=(1,1,1),
             reals={"mu": 18.2, "omega1": 0, "chi1": 1.4, "omega2": 0, "chi2": 0, "gamma": 0.47, "delta": 31.84},
         )
-    >>> diffr.add_reflection(
-            pseudos=(2,0,0),
-            reals={ "mu": 3, "omega1": 0, "chi1": 0, "omega2": 0, "chi2": 0, "gamma": 2.39, "delta": 38.5},
-        )
 
-    4. Now you can calculate the UB matrix:
+    4. You can calculate the UB matrix with either 1 or 2 reflections. With one reflection, a referenece hkl, and a reference stage:
+
+    >>> diffr.ub_from_one_reflection(reflection, reference_hkl, reference_stage, set_ub=False)
+
+    To calculate UB with two reflections, set two reflections as outlined above, and call calc_UB():
     >>> diffr.calc_UB()
     or
     >>> diffr.core.calc_UB(*diffr.sample.reflections)
@@ -150,14 +150,17 @@ class CDIDiffractometer(DiffractometerBase):
         """A wrapper around core.calc_UB() to simplify the syntax."""
         return self.core.calc_UB(*self.sample.reflections)  # type: ignore[reportOptionalMemberAccess]
 
-    def ub_from_one_reflection(
-        self, sample, reflection, reference_hkl, reference_stage, set_ub=False
-    ):  # type: ignore[reportUnknownParameterType]
+    def ub_from_one_reflection(self, reference_hkl, reference_stage, set_ub=False):  # type: ignore[reportUnknownParameterType]
         """Alias over ad_hoc_diffractometer.ub_from_one_reflection with an extra option to set the UB matrix on the sample."""
+        if not self.sample:
+            return RuntimeError("Must set a sample before calculating UB matrix.")
+        if not self.sample.reflections:
+            return RuntimeError("Must set at least one reflection.")
+        rflct = self.sample.reflections.order[0]
         ub = ahd.ub_from_one_reflection(
-            sample, reflection, reference_hkl, reference_stage
+            self.sample, self.sample.reflections[rflct], reference_hkl, reference_stage
         )
-        if set_ub and self.sample:
+        if set_ub:
             self.sample.UB = ub.tolist()
         return ub
 

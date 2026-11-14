@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+import ad_hoc_diffractometer as ahd
 import hklpy2
 import hklpy2.user
 from hklpy2.diffract import DiffractometerBase, Sample
@@ -148,6 +149,17 @@ class CDIDiffractometer(DiffractometerBase):
     def calc_UB(self):
         """A wrapper around core.calc_UB() to simplify the syntax."""
         return self.core.calc_UB(*self.sample.reflections)  # type: ignore[reportOptionalMemberAccess]
+
+    def ub_from_one_reflection(
+        self, sample, reflection, reference_hkl, reference_stage, set_ub=False
+    ):  # type: ignore[reportUnknownParameterType]
+        """Alias over ad_hoc_diffractometer.ub_from_one_reflection with an extra option to set the UB matrix on the sample."""
+        ub = ahd.ub_from_one_reflection(
+            sample, reflection, reference_hkl, reference_stage
+        )
+        if set_ub and self.sample:
+            self.sample.UB = ub.tolist()
+        return ub
 
     def status(self) -> str:
         """Status method to show what has been configured."""

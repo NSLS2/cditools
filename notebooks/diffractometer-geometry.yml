@@ -8,6 +8,10 @@ ad_hoc_diffractometer_geometry:
 name: cdi-geometry
 
 documentation: |
+  This file is not used in production. At CDI, the geometry file is located
+  in the cdi-profile-collection. This geometry file is retained here for
+  reference and for running notebooks easily offline.
+
   CDI 7-circle diffractometer prototype.
 
   This is a working first model of the CDI stack from beamline notes.
@@ -19,17 +23,16 @@ documentation: |
   two lower CDI sample stages noted as omega/chi during beamline
   discussion:
 
-      chi  -> gon.sam.c_lg.lrx / omega1 in earlier notes
-      phi  -> gon.sam.c_lg.lrz / chi1 in earlier notes
-
+      omega1 -> gon.sam.c_lg.lrx
+      chi1 -> gon.sam.c_lg.lrz
 
   Basis used here: vertical=+Y, longitudinal=+Z, transverse=+X.
 
 
   Stack (floor first):
       mu                  : vertical
-        --> chi           : longitudinal
-              --> phi     : transverse
+        --> omega1        : longitudinal
+              --> chi1    : transverse
                     --> omega2 : longitudinal, fixed at 0 in fixed_alpha
                           --> chi2 : transverse, fixed at 0 in fixed_alpha
       gamma              : rotation about x-axis (vertical in motion)
@@ -44,12 +47,8 @@ basis:
 stages:
   # TODO - check +/- signs
   - { name: mu, axis: +vertical, parent: null, role: sample } # Ry gon.sam.ry
-  - { name: omega1, axis: +transverse, parent: mu, role: sample } # Rx gon.sam.c_lg.lrx / omega1
-  # omega about the transverse axis
-  # phi is about the vertical when everything else is at 0, but would change as everythhing else moves
-  # we do not have a phi installed, so it should be zero or not included in the geometry.
-  # phi is on top of omega and chi and mu
-  - { name: chi1, axis: +longitudinal, parent: omega1, role: sample } # Rz gon.sam.c_lg.lrz / chi1
+  - { name: omega1, axis: +transverse, parent: mu, role: sample } # Rx gon.sam.c_lg.lrx
+  - { name: chi1, axis: +longitudinal, parent: omega1, role: sample } # Rz gon.sam.c_lg.lrz
 
   # do not need to worry about second omega and chi; assume they are fixed
   # we have double omega and double chi installed, but do not need to incorporate them right now

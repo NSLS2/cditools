@@ -20,7 +20,7 @@ ignore-pypi-mapping = false  # Enable automatic PyPI-to-conda mapping
 ophyd = "*"
 h5py = "*"
 xrayutilities = ">=1.7.12,<2"
-ad-hoc-diffractometer = ">=0.11.4,<0.12"
+ipykernel = ">=7.4.0,<8"
 
 [pypi-dependencies]
 cditools = { path = ".", editable = true }

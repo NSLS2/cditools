@@ -8,36 +8,24 @@ ad_hoc_diffractometer_geometry:
 name: cdi-geometry
 
 documentation: |
-  This file is not used in production. At CDI, the geometry file is located
-  in the cdi-profile-collection. This geometry file is retained here for
-  reference and for running notebooks easily offline.
-
   CDI 7-circle diffractometer prototype.
-
   This is a working first model of the CDI stack from beamline notes.
   The top two sample rotations are fixed at zero in the initial mode.
-
-
   The solver has special handling for an Eulerian inner pair named
   ``chi`` and ``phi``.  These names are solver-facing aliases for the
   two lower CDI sample stages noted as omega/chi during beamline
   discussion:
-
-      omega1 -> gon.sam.c_lg.lrx
-      chi1 -> gon.sam.c_lg.lrz
-
+      chi  -> gon.sam.c_lg.lrx / omega1 in earlier notes
+      phi  -> gon.sam.c_lg.lrz / chi1 in earlier notes
   Basis used here: vertical=+Y, longitudinal=+Z, transverse=+X.
-
-
   Stack (floor first):
       mu                  : vertical
-        --> omega1        : longitudinal
-              --> chi1    : transverse
+        --> chi           : longitudinal
+              --> phi     : transverse
                     --> omega2 : longitudinal, fixed at 0 in fixed_alpha
                           --> chi2 : transverse, fixed at 0 in fixed_alpha
       gamma              : rotation about x-axis (vertical in motion)
         --> delta        : rotation about y-axis (horizontal in motion)
-
 # [x, y, z]
 basis:
   vertical: [0.0, 1.0, 0.0]
@@ -47,8 +35,12 @@ basis:
 stages:
   # TODO - check +/- signs
   - { name: mu, axis: +vertical, parent: null, role: sample } # Ry gon.sam.ry
-  - { name: omega1, axis: +transverse, parent: mu, role: sample } # Rx gon.sam.c_lg.lrx
-  - { name: chi1, axis: +longitudinal, parent: omega1, role: sample } # Rz gon.sam.c_lg.lrz
+  - { name: omega1, axis: +transverse, parent: mu, role: sample } # Rx gon.sam.c_lg.lrx / omega1
+  # omega about the transverse axis
+  # phi is about the vertical when everything else is at 0, but would change as everythhing else moves
+  # we do not have a phi installed, so it should be zero or not included in the geometry.
+  # phi is on top of omega and chi and mu
+  - { name: chi1, axis: +longitudinal, parent: omega1, role: sample } # Rz gon.sam.c_lg.lrz / chi1
 
   # do not need to worry about second omega and chi; assume they are fixed
   # we have double omega and double chi installed, but do not need to incorporate them right now
@@ -58,25 +50,107 @@ stages:
   - { name: delta, axis: +vertical, parent: gamma, role: detector } # Ry tdms.ay
 
 # 7 real axes, so N - 3 = 4 constraints are needed for a unique forward solve.
-# TODO - look at using qaz for single detector constraint
-# can be used to specify vertical or horizontal plane scattering
 modes:
-  fixed_incidence:
+  fixed_incidence_mu:
     constraints:
-      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: sample, stage: mu, value: 0.0 }
       - { type: sample, stage: omega2, value: 0.0 }
-      - { type: sample, stage: chi1, value: 0.0 }
-      # - { type: detector, stage: gamma, value: 0.0 }
-      - { type: reference, name: incidence, value: 5.0 }
-    computed: [mu, omega1, delta, gamma]
+      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: reference, name: incidence, value: 0.0 }
+    computed: [omega1, chi1, gamma, delta]
     extras:
       n_hat: REQUIRED
       incidence: REQUIRED
 
-  fixed_chi1_chi2_omega2:
+  fixed_incidence_omega1:
+    constraints:
+      - { type: sample, stage: omega1, value: 0.0 }
+      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: reference, name: incidence, value: 0.0 }
+    computed: [mu, chi1, gamma, delta]
+    extras:
+      n_hat: REQUIRED
+      incidence: REQUIRED
+
+  fixed_incidence_chi1:
+    constraints:
+      - { type: sample, stage: chi1, value: 0.0 }
+      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: reference, name: incidence, value: 0.0 }
+    computed: [mu, omega1, gamma, delta]
+    extras:
+      n_hat: REQUIRED
+      incidence: REQUIRED
+
+  fixed_incidence_gamma:
+    constraints:
+      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: detector, stage: gamma, value: 0.0 }
+      - { type: reference, name: incidence, value: 0.0 }
+    computed: [mu, omega1, chi1, delta]
+    extras:
+      n_hat: REQUIRED
+      incidence: REQUIRED
+
+  fixed_incidence_delta:
+    constraints:
+      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: detector, stage: delta, value: 0.0 }
+      - { type: reference, name: incidence, value: 0.0 }
+    computed: [mu, omega1, chi1, gamma]
+    extras:
+      n_hat: REQUIRED
+      incidence: REQUIRED
+
+  fixed_mu_omega2_chi2_gamma:
+    constraints:
+      - { type: sample, stage: mu, value: 0.0 }
+      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: detector, stage: gamma, value: 0.0 }
+    computed: [omega1, chi1, delta]
+
+  fixed_omega1_omega2_chi2_gamma:
+    constraints:
+      - { type: sample, stage: omega1, value: 0.0 }
+      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: detector, stage: gamma, value: 0.0 }
+    computed: [mu, chi1, delta]
+
+  fixed_chi1_omega2_chi2_gamma:
     default: true
     constraints:
-      - { type: sample, stage: chi2, value: 0.0 }
-      - { type: sample, stage: omega2, value: 0.0 }
       - { type: sample, stage: chi1, value: 0.0 }
-    computed: [mu, omega1, delta, gamma]
+      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: detector, stage: gamma, value: 0.0 }
+    computed: [mu, omega1, delta]
+
+  fixed_mu_omega2_chi2_delta:
+    constraints:
+      - { type: sample, stage: mu, value: 0.0 }
+      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: detector, stage: delta, value: 0.0 }
+    computed: [omega1, chi1, gamma]
+
+  fixed_omega1_omega2_chi2_delta:
+    constraints:
+      - { type: sample, stage: omega1, value: 0.0 }
+      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: detector, stage: delta, value: 0.0 }
+    computed: [mu, chi1, gamma]
+
+  fixed_chi1_omega2_chi2_delta:
+    constraints:
+      - { type: sample, stage: chi1, value: 0.0 }
+      - { type: sample, stage: omega2, value: 0.0 }
+      - { type: sample, stage: chi2, value: 0.0 }
+      - { type: detector, stage: delta, value: 0.0 }
+    computed: [mu, omega1, gamma]

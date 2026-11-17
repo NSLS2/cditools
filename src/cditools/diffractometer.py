@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from itertools import permutations, product
 
 import ad_hoc_diffractometer as ahd
 import hklpy2
@@ -62,7 +63,7 @@ class CDIDiffractometer(DiffractometerBase):
             reals={"mu": 18.2, "omega1": 0, "chi1": 1.4, "omega2": 0, "chi2": 0, "gamma": 0.47, "delta": 31.84},
         )
 
-    4. You can calculate the UB matrix with either 1 or 2 reflections. With one reflection, a referenece hkl, and a reference stage:
+    4. You can calculate the UB matrix with either 1 or 2 reflections. With one reflection, a reference hkl, and a reference stage:
 
     >>> diffr.ub_from_one_reflection(reflection, reference_hkl, reference_stage, set_ub=False)
 
@@ -121,6 +122,19 @@ class CDIDiffractometer(DiffractometerBase):
     def modes(self) -> list[str]:
         return self.core.modes
 
+    def _get_families_of_reflections(
+        self, reflections: list[hklpy2.user.AxesTuple]
+    ) -> list[hklpy2.user.AxesTuple]:
+        """Obtain reflections of all families of reflections. Assumes a cubic crystal system"""
+        return sorted(
+            {
+                perm
+                for reflection in reflections
+                for signed in product(*({value, -value} for value in reflection))
+                for perm in permutations(signed)
+            }
+        )
+
     def cahkl_table(
         self,
         *reflections: list[hklpy2.user.AxesTuple],
@@ -130,20 +144,7 @@ class CDIDiffractometer(DiffractometerBase):
         hklpy2.user.set_diffractometer(self)
         all_reflections = reflections
         if all_perms:
-            all_reflections = []
-            negs = [-1, -1, -1]
-            permutations = []
-            for i in range(1 << len(negs)):
-                perm = [
-                    d ** int(xp) for d, xp in zip(negs, format(i, "03b"), strict=False)
-                ]
-                permutations.append(perm)
-            for ref in reflections:
-                for perm in permutations:
-                    # TODO - change ruff formatter to not require strict param
-                    ref_perm = [r * n for r, n in zip(ref, perm, strict=False)]
-                    if ref_perm not in all_reflections:
-                        all_reflections.append(ref_perm)
+            all_reflections = self._get_families_of_reflections(reflections)
         return hklpy2.user.cahkl_table(*all_reflections, digits=digits)
 
     def calc_UB(self):

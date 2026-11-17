@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-from typing import Any
 
 import ad_hoc_diffractometer as ahd
 import hklpy2
@@ -67,7 +66,7 @@ def all_angles():
 
 
 @pytest.fixture(scope="session")
-def register_geometry():
+def _register_geometry():
     ahd.register_geometry_file(
         str(Path(__file__).parent.parent / "notebooks/diffractometer-geometry.yml"),
         name="cdi-geometry",
@@ -75,11 +74,9 @@ def register_geometry():
 
 
 class TestDiffractometer:
-    @pytest.mark.usefixtures("register_geometry")
-    def test_registered_geometry(self, all_angles: dict[str, Any]):
-        # diff = CDIDiffractometer(name="test-diff", pseudos=["h", "k", "l"],
-        #  reals=["mu", "omega1", "chi1", "omega2", "chi2", "gamma", "delta"])
-        diffr = hklpy2.creator(
+    @pytest.fixture
+    def diffr(self, all_angles, _register_geometry):
+        return hklpy2.creator(
             prefix="",
             name="diffr",
             solver="ad_hoc",
@@ -87,21 +84,15 @@ class TestDiffractometer:
             reals=all_angles,
             class_bases=[CDIDiffractometer],
         )
+
+    def test_registered_geometry(self, diffr):
         assert diffr.core.geometry == "cdi-geometry"
 
     # If this test fails, the geometry is invalid
-    @pytest.mark.usefixtures("register_geometry")
-    def test_forward_and_inverse(self, all_angles: dict[str, Any]):
-        diffr = hklpy2.creator(
-            prefix="",
-            name="diffr",
-            solver="ad_hoc",
-            geometry="cdi-geometry",
-            reals=all_angles,
-            class_bases=[CDIDiffractometer],
-        )
+    def test_forward_and_inverse(self, diffr):
         hkl_init = (1, 1, 1)
         solutions = diffr.core.forward(hkl_init)
+        assert solutions
         for sol in solutions:
             hkl = diffr.core.inverse(sol)
             np.testing.assert_allclose(
@@ -110,3 +101,59 @@ class TestDiffractometer:
 
     def test_solver(self):
         pass
+
+    def test_get_families_of_reflections(self, diffr):
+        actual_family_100 = sorted(
+            [(1, 0, 0), (0, 1, 0), (0, 0, 1), (-1, 0, 0), (0, -1, 0), (0, 0, -1)]
+        )
+        calc_family_100 = diffr._get_families_of_reflections([(1, 0, 0)])
+
+        actual_family_110 = sorted(
+            [
+                (1, 1, 0),
+                (1, -1, 0),
+                (-1, 1, 0),
+                (-1, -1, 0),
+                (1, 0, 1),
+                (1, 0, -1),
+                (-1, 0, 1),
+                (-1, 0, -1),
+                (0, 1, 1),
+                (0, 1, -1),
+                (0, -1, 1),
+                (0, -1, -1),
+            ]
+        )
+        calc_family_110 = diffr._get_families_of_reflections([(1, 1, 0)])
+
+        assert actual_family_110 == calc_family_110
+        assert actual_family_100 == calc_family_100
+
+    def test_calc_UB_matrix(self, diffr):
+        diffr.add_reflection(
+            pseudos=(1, 0, 0),
+            reals={
+                "mu": 30,
+                "omega1": 0,
+                "chi1": 0,
+                "omega2": 0,
+                "chi2": 0,
+                "gamma": 0,
+                "delta": 60,
+            },
+        )
+        diffr.add_reflection(
+            pseudos=(0, 0, 1),
+            reals={
+                "mu": 120,
+                "omega1": 0,
+                "chi1": 0,
+                "omega2": 0,
+                "chi2": 0,
+                "gamma": 0,
+                "delta": 60,
+            },
+        )
+
+        ub = diffr.calc_UB()
+        np.testing.assert_allclose(ub, 2 * np.pi * np.eye(3), atol=1e-10)
